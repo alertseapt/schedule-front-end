@@ -5,7 +5,7 @@
 // Função para obter configuração centralizada
 const getApiConfig = () => {
   // Valor padrão para compatibilidade com arquivos que não usam módulos ES6
-  const DEFAULT_BASE_URL = 'http://localhost:4000/api'
+  const DEFAULT_BASE_URL = 'https://schedule-mercocamp-back-end.onrender.com/api'
   
   // Tentar obter da configuração centralizada se disponível
   try {
