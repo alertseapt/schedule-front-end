@@ -5,7 +5,7 @@
 // PARA ALTERAR O ENDPOINT DA API:
 // Modifique apenas a linha abaixo:
 
-const API_BASE_URL = 'https://schedule-mercocamp-back-end.onrender.com/api'
+const API_BASE_URL = 'http://localhost:4000/api'
 
 // ========================================
 

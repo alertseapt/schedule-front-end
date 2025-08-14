@@ -109,6 +109,58 @@
             transform: translateY(-1px);
         }
 
+        /* Estilos para o botão de alteração de status */
+        .status-action-row {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 20px;
+            padding: 0 10px;
+        }
+
+        .status-change-btn {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 12px 24px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+            font-family: 'Poppins', sans-serif;
+        }
+
+        .status-change-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4);
+            background: linear-gradient(135deg, #20c997 0%, #17a2b8 100%);
+        }
+
+        .status-change-btn:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .status-change-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: 0 2px 8px rgba(108, 117, 125, 0.3);
+            opacity: 0.7;
+        }
+
+        .status-change-btn.status-changed {
+            background: #28a745;
+            cursor: not-allowed;
+        }
+
+        .status-change-btn i {
+            font-size: 1rem;
+        }
+
         .verification-header {
             text-align: center;
             margin-bottom: 32px;
@@ -990,6 +1042,19 @@
                         </div>
                         
                         <div class="agendamento-details">
+                            <!-- Botão de alteração de status -->
+                            <div class="status-action-row">
+                                <button 
+                                    class="status-change-btn" 
+                                    onclick="changeStatusToConference(${agendamento.id}, this)"
+                                    title="Alterar status para Em Conferência"
+                                    ${agendamento.status === 'Conferência' ? 'disabled' : ''}
+                                >
+                                    <i class="fas fa-check-circle"></i>
+                                    ${agendamento.status === 'Conferência' ? 'Status já em Conferência' : 'Marcar como Conferência'}
+                                </button>
+                            </div>
+                            
                             <!-- Primeira linha: Informações básicas -->
                             <div class="detail-row four-columns">
                                 <div class="detail-item">
@@ -1086,6 +1151,112 @@
                 'Cancelado': '#6c757d'           // secondary - cinza
             };
             return statusColors[status] || '#6c757d'; // secondary como fallback
+        }
+
+        // Função para alterar status para "Em Conferência"
+        async function changeStatusToConference(scheduleId, buttonElement) {
+            const token = localStorage.getItem('token');
+            
+            if (!token) {
+                showError('Token de autenticação não encontrado. Faça login novamente.');
+                window.location.href = '/login.html';
+                return;
+            }
+
+            if (!buttonElement) {
+                console.error('Elemento do botão não encontrado');
+                showError('Erro interno: elemento do botão não encontrado');
+                return;
+            }
+
+            try {
+                // Mostrar loading no botão
+                const originalText = buttonElement.innerHTML;
+                buttonElement.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Alterando...';
+                buttonElement.disabled = true;
+
+                console.log('🔄 Alterando status para Conferência...', { scheduleId, apiUrl: `${API_BASE_URL}/schedules/${scheduleId}/status` });
+
+                // Obter dados do usuário atual
+                const userData = localStorage.getItem('user');
+                let currentUser = {};
+                if (userData) {
+                    try {
+                        currentUser = JSON.parse(userData);
+                    } catch (e) {
+                        console.error('Erro ao parsear dados do usuário:', e);
+                    }
+                }
+
+                const payload = {
+                    status: 'Conferência',
+                    historic_entry: {
+                        user: currentUser.user || currentUser.name || 'Usuário',
+                        action: 'Status alterado para Conferência',
+                        comment: 'Agendamento marcado como em conferência via página de verificação'
+                    }
+                };
+
+                console.log('📤 Payload enviado:', payload);
+
+                const response = await fetch(`${API_BASE_URL}/schedules/${scheduleId}/status`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                console.log('📡 Resposta da API:', { status: response.status, ok: response.ok });
+
+                const data = await response.json();
+                console.log('📄 Dados da resposta:', data);
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        showError('Sessão expirada. Faça login novamente.');
+                        localStorage.removeItem('token');
+                        localStorage.removeItem('user');
+                        window.location.href = '/login.html';
+                        return;
+                    }
+                    
+                    // Log detalhado do erro
+                    console.error('❌ Erro da API:', {
+                        status: response.status,
+                        statusText: response.statusText,
+                        data: data
+                    });
+                    
+                    const errorMessage = data.error || data.message || data.detail || `Erro ${response.status}: ${response.statusText}`;
+                    throw new Error(errorMessage);
+                }
+
+                // Sucesso - atualizar interface
+                showSuccess('Status alterado para "Em Conferência" com sucesso!');
+                console.log('✅ Status alterado com sucesso!');
+                
+                // Atualizar o status na interface
+                const statusBadge = buttonElement.closest('.agendamento-card').querySelector('.status-badge');
+                if (statusBadge) {
+                    statusBadge.textContent = 'Conferência';
+                    statusBadge.style.backgroundColor = '#28a745';
+                }
+                
+                // Desabilitar o botão
+                buttonElement.innerHTML = '<i class="fas fa-check-circle"></i> Status já em Conferência';
+                buttonElement.disabled = true;
+                buttonElement.classList.add('status-changed');
+
+            } catch (error) {
+                console.error('❌ Erro ao alterar status:', error);
+                showError(error.message || 'Erro ao alterar status. Tente novamente.');
+                
+                // Restaurar botão
+                buttonElement.innerHTML = originalText;
+                buttonElement.disabled = false;
+            }
         }
 
         function handleLogout() {
