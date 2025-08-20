@@ -110,7 +110,7 @@ class AuthGuard {
     sessionStorage.setItem('redirectAfterLogin', window.location.href)
 
     // Redireciona para página de login
-    window.location.href = '/login.html'
+    const loginUrl = `http://${window.location.host}/login.html`; console.log('Utils auth-guard - URL de login (HTTP forçado):', loginUrl); window.location.href = loginUrl
   }
 
   /**
@@ -361,7 +361,7 @@ class AuthGuard {
       localStorage.removeItem('rememberedUser')
 
       // Redireciona para login
-      window.location.href = '/login.html'
+      const loginUrl = `http://${window.location.host}/login.html`; console.log('Utils auth-guard - URL de login (HTTP forçado):', loginUrl); window.location.href = loginUrl
     }
   }
 
@@ -463,7 +463,7 @@ class AuthenticatedApiClient {
     if (response.status === 401) {
       localStorage.removeItem('token')
       localStorage.removeItem('user')
-      window.location.href = '/login.html'
+      const loginUrl = `http://${window.location.host}/login.html`; console.log('Utils auth-guard - URL de login (HTTP forçado):', loginUrl); window.location.href = loginUrl
       return
     }
 

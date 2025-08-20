@@ -425,10 +425,13 @@ export default {
         if (error.response?.status === 403) {
           this.showError('Acesso negado. Usuário não possui permissão para criar agendamentos de marcação.')
         } else if (error.response?.status === 401) {
-          this.showError('Token de autenticação inválido. Faça login novamente.')
-          localStorage.removeItem('token')
-          localStorage.removeItem('user')
-          window.location.href = 'login.html'
+          console.log('=== SCHEDULE BOOKING MODAL: ERRO 401 ===');
+          console.log('REMOVENDO REDIRECIONAMENTO AUTOMÁTICO');
+          
+          this.showError('Sessão expirada. Tente fazer login novamente se necessário.')
+          
+          // NÃO remover token nem redirecionar automaticamente
+          // Apenas mostrar o erro e deixar o usuário decidir
         } else {
           this.showError(
             'Erro ao criar agendamento de marcação: ' + (error.message || 'Erro desconhecido')

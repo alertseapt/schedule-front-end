@@ -9,46 +9,128 @@ import './assets/css/vue-components.css'
 
 // Configurar axios defaults usando configuração centralizada
 axios.defaults.baseURL = BASE_URL
+console.log('=== CONFIGURAÇÃO DO AXIOS ===');
+console.log('BASE_URL usada:', BASE_URL);
+console.log('axios.defaults.baseURL configurado para:', axios.defaults.baseURL);
 
-// Função para verificar nível de acesso antes de inicializar a app
-async function checkUserAccessLevel() {
-  const token = localStorage.getItem('token') || localStorage.getItem('authToken')
+// Interceptor para logar todas as requisições do axios
+axios.interceptors.request.use(
+  config => {
+    console.log('=== REQUISIÇÃO AXIOS ===');
+    console.log('URL completa:', config.url);
+    console.log('BaseURL:', config.baseURL);
+    console.log('Método:', config.method);
+    console.log('Headers:', config.headers);
+    return config;
+  },
+  error => {
+    console.error('Erro na requisição axios:', error);
+    return Promise.reject(error);
+  }
+);
+
+// Interceptor para logar todas as respostas do axios
+axios.interceptors.response.use(
+  response => {
+    console.log('=== RESPOSTA AXIOS ===');
+    console.log('Status:', response.status);
+    console.log('URL:', response.config.url);
+    return response;
+  },
+  error => {
+    console.error('=== ERRO AXIOS ===');
+    console.error('Erro na verificação de acesso:', error);
+    console.error('URL que falhou:', error.config?.url);
+    console.error('BaseURL usado:', error.config?.baseURL);
+    return Promise.reject(error);
+  }
+);
+
+// SISTEMA SIMPLES - APENAS VERIFICAÇÃO BÁSICA DE TOKEN
+console.log('=== MAIN.JS INICIADO ===');
+console.log('URL atual:', window.location.href);
+console.log('Timestamp:', new Date().toISOString());
+
+// Aguardar um pouco para garantir que localStorage está atualizado após login
+setTimeout(() => {
+  console.log('=== VERIFICANDO AUTENTICAÇÃO APÓS DELAY ===');
+  console.log('Timestamp:', new Date().toISOString());
+  console.log('URL atual durante verificação:', window.location.href);
   
-  if (!token) {
-    // Sem token, redirecionar para login
-    window.location.href = '/login.html'
-    return false
+  const token = localStorage.getItem('token');
+  const userData = localStorage.getItem('user');
+
+  console.log('=== ESTADO ATUAL DO LOCALSTORAGE ===');
+  console.log('Token encontrado:', !!token);
+  console.log('User data encontrado:', !!userData);
+  
+  // Log de todos os itens do localStorage para debug
+  console.log('=== CONTEÚDO COMPLETO DO LOCALSTORAGE ===');
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    const value = localStorage.getItem(key);
+    console.log(`${key}: ${value ? (key.includes('token') ? 'TOKEN_' + value.slice(-20) : value) : 'null'}`);
   }
 
-  try {
-    const response = await axios.get('/auth/verify', {
-      headers: { Authorization: `Bearer ${token}` }
-    })
+  if (token) {
+      console.log('Token (primeiros 20 chars):', token.substring(0, 20) + '...');
+  }
+  if (userData) {
+      console.log('User data raw:', userData);
+      try {
+          const user = JSON.parse(userData);
+          console.log('User parsed successfully:', user);
+          console.log('User level_access:', user.level_access);
+      } catch (e) {
+          console.error('Erro ao parsear user data:', e);
+      }
+  }
 
-    if (response.data.user.level_access === 9) {
-      // Usuário nível 9 deve ir para página de verificação
-      window.location.href = '/schedule-verification.html'
-      return false
+  // VERIFICAÇÃO SIMPLES - SEM CHAMADAS DE API
+  if (!token || !userData) {
+    console.log('=== SEM TOKEN/USER - REDIRECIONANDO PARA LOGIN ===');
+    const loginUrl = `http://${window.location.host}/login.html`;
+    console.log('Redirecionando para:', loginUrl);
+    window.location.href = loginUrl;
+  } else {
+    console.log('=== TOKEN ENCONTRADO - CARREGANDO APP ===');
+    
+    try {
+      const user = JSON.parse(userData);
+      console.log('User data:', user);
+      console.log('Level access:', user.level_access);
+      
+      // VERIFICAR SE USUÁRIO ESTÁ NA PÁGINA CORRETA
+      const currentPath = window.location.pathname;
+      console.log('Página atual:', currentPath);
+      
+      if (user.level_access === 9) {
+        // Usuário nível 9 deve estar na página de verificação
+        if (currentPath === '/' || currentPath.includes('index.html')) {
+          console.log('Usuário nível 9 na página errada - redirecionando');
+          const verificationUrl = `http://${window.location.host}/schedule-verification.html`;
+          window.location.href = verificationUrl;
+        } else {
+          console.log('Usuário nível 9 na página correta');
+        }
+      } else {
+        // Usuário normal deve estar no dashboard
+        if (currentPath.includes('schedule-verification.html')) {
+          console.log('Usuário normal na página de verificação - redirecionando para dashboard');
+          const dashboardUrl = `http://${window.location.host}/`;
+          window.location.href = dashboardUrl;
+        } else {
+          console.log('Usuário normal - carregando dashboard');
+          // Carregar aplicação Vue
+          const app = createApp(App);
+          app.config.globalProperties.$http = axios;
+          app.mount('#app');
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao processar dados do usuário:', error);
+      const loginUrl = `http://${window.location.host}/login.html`;
+      window.location.href = loginUrl;
     }
-
-    return true
-  } catch (error) {
-    console.error('Erro na verificação de acesso:', error)
-    // Token inválido, redirecionar para login
-    localStorage.removeItem('token')
-    localStorage.removeItem('authToken')
-    localStorage.removeItem('user')
-    window.location.href = '/login.html'
-    return false
   }
-}
-
-// Inicializar aplicação apenas se usuário tiver acesso correto
-checkUserAccessLevel().then(canAccess => {
-  if (canAccess) {
-    // Tornar axios disponível globalmente
-    const app = createApp(App)
-    app.config.globalProperties.$http = axios
-    app.mount('#app')
-  }
-})
+}, 500); // Delay de 500ms para aguardar o localStorage ser atualizado

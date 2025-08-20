@@ -1275,12 +1275,15 @@ export default {
             'Acesso negado. Usuário não possui permissão para criar agendamentos.'
           )
         } else if (error.response?.status === 401) {
+          console.log('=== SCHEDULE CREATION MODAL: ERRO 401 ===');
+          console.log('REMOVENDO REDIRECIONAMENTO AUTOMÁTICO');
+          
           this.showError(
-            'Token de autenticação inválido. Faça login novamente.'
+            'Sessão expirada. Tente fazer login novamente se necessário.'
           )
-          localStorage.removeItem('token')
-          localStorage.removeItem('user')
-          window.location.href = 'login.html'
+          
+          // NÃO remover token nem redirecionar automaticamente
+          // Apenas mostrar o erro e deixar o usuário decidir
         } else if (error.response?.status === 400) {
           const errorData = error.response?.data
           let errorMessage =

@@ -3,9 +3,12 @@
 // ========================================
 // 
 // PARA ALTERAR O ENDPOINT DA API:
-// Modifique apenas a linha abaixo:
+// Use o arquivo config.js na raiz do projeto
 
-const API_BASE_URL = 'http://localhost:4000/api'
+// Usar configuração dinâmica do config.js se disponível, senão fallback para proxy reverso
+const API_BASE_URL = (typeof window !== 'undefined' && window.API_URL) 
+  ? window.API_URL 
+  : '/api'
 
 // ========================================
 

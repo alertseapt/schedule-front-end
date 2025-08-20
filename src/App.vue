@@ -361,10 +361,9 @@ const apiClient = window.apiClient || new (class VueApiClientFallback {
           throw error
         }
         
-        localStorage.removeItem('token')
-        localStorage.removeItem('user')
-        console.log('Token expirado, redirecionando para login')
-        window.location.href = '/login.html'
+        console.log('Token expirado - erro 401 detectado')
+        // NÃO remover token nem redirecionar automaticamente
+        // Apenas logar o erro e deixar o usuário continuar
         return
       }
       throw error
@@ -759,26 +758,26 @@ export default {
     },
   },
   async mounted() {
-    console.log('🚀 App.vue montado');
+    console.log('=== APP.VUE MONTADO ===');
     
     try {
-      // Inicializar loading
-      this.setLoading(true, 'Inicializando Sistema...', 'Verificando autenticação')
+      // Carregamento simples - sem verificações complexas
+      this.setLoading(true, 'Carregando Sistema...', 'Aguarde um momento')
       
-      // Verificar autenticação (rápido - apenas localStorage)
-      await this.checkAuth();
+      // Carregar dados do localStorage (já verificado no main.js)
+      this.loadUserFromStorage();
       
-      // Liberar a interface rapidamente
-      this.setLoading(false)
-      
-      // Carregar dados em background (não bloqueia interface)
-      this.loadInitialDataInBackground();
+      // Carregar dados iniciais sem verificações de token
+      this.loadInitialDataSimple();
       
       // Inicializar permissões
       initializePermissions();
       
+      this.setLoading(false);
+      console.log('App.vue carregado com sucesso');
+      
     } catch (error) {
-      console.error('Erro na inicialização:', error)
+      console.error('Erro na inicialização do App.vue:', error)
       this.setLoading(false)
       this.addNotification('Erro ao inicializar sistema', 'error')
     }
@@ -796,18 +795,20 @@ export default {
       this.loadingMessage = message
       this.loadingSubtext = subtext
     },
-    async checkAuth() {
-      const token = localStorage.getItem('token')
-      const userData = localStorage.getItem('user')
-      if (!token || !userData) {
-        window.location.href = '/login.html'
-        return
-      }
-      try {
-        this.user = JSON.parse(userData)
-      } catch (error) {
-        console.error('Erro ao parsear dados do usuário:', error)
-        window.location.href = '/login.html'
+    // FUNÇÃO SIMPLES - APENAS CARREGA DO LOCALSTORAGE
+    loadUserFromStorage() {
+      console.log('=== CARREGANDO USER DO LOCALSTORAGE ===');
+      
+      const userData = localStorage.getItem('user');
+      if (userData) {
+        try {
+          this.user = JSON.parse(userData);
+          console.log('Usuário carregado:', this.user);
+          console.log('Level access:', this.user.level_access);
+        } catch (error) {
+          console.error('Erro ao parsear dados do usuário:', error);
+          // Se não conseguir parsear, não faz nada - main.js já validou
+        }
       }
     },
 
@@ -908,7 +909,9 @@ export default {
       if (confirmed) {
         localStorage.removeItem('token')
         localStorage.removeItem('user')
-        window.location.href = '/login.html'
+        const loginUrl = `http://${window.location.host}/login.html`;
+        console.log('Logout - URL de login (HTTP forçado):', loginUrl);
+        window.location.href = loginUrl
       }
     },
 
@@ -1075,10 +1078,18 @@ export default {
     async loadEssentialDataOptimized() {
       this.statsLoading = true
       try {
-        // Usar o apiClient global com cache
-        console.log('🎯 Fazendo única requisição para /schedules...')
+        // Verificar token mais uma vez antes da requisição crítica
+        const token = localStorage.getItem('token');
+        console.log('🎯 App.vue: Fazendo requisição para /schedules...');
+        console.log('🔑 Token disponível para requisição:', !!token);
+        
+        if (!token) {
+          console.log('❌ Sem token - cancelando requisição /schedules');
+          throw new Error('Token não disponível para requisição');
+        }
         
         // UMA ÚNICA REQUISIÇÃO para obter todos os dados necessários COM TIMEOUT
+        console.log('📡 Iniciando requisição /schedules com token:', token.substring(0, 20) + '...');
         const response = await Promise.race([
           apiClient.request('/schedules', {
             method: 'GET',
@@ -2198,47 +2209,70 @@ export default {
       }
     },
 
-    async loadInitialDataInBackground() {
+    // CARREGAMENTO SIMPLES DE DADOS INICIAIS
+    async loadInitialDataSimple() {
+      console.log('=== CARREGANDO DADOS INICIAIS ===');
+      
       try {
-        console.log('🔄 Carregando dados em background...')
+        this.statsLoading = true;
         
-        // Mostrar loading sutil para indicar carregamento em background
-        this.statsLoading = true
+        // Carregar dados mockados primeiro para interface responder
+        this.loadMockData();
         
-        // Carregar clientes disponíveis via API (uma vez por sessão)
-        this.loadClientsFromAPI()
-        
-        // Adicionar pequeno delay para permitir que a interface renderize
-        await new Promise(resolve => setTimeout(resolve, 100))
-        
-        // Carregar dados essenciais com timeout
-        await Promise.race([
-          this.loadEssentialDataOptimized(),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Timeout na requisição inicial')), 10000) // 10 segundos
-          )
-        ])
-        
-        console.log('✅ Dados de background carregados!')
+        // Depois tentar carregar dados reais (sem bloquear se falhar)
+        setTimeout(() => {
+          this.loadRealDataInBackground();
+        }, 1000);
         
       } catch (error) {
-        console.error('⚠️ Erro ao carregar dados em background:', error)
+        console.error('Erro ao carregar dados iniciais:', error);
+        this.addNotification('Interface carregada - dados sendo obtidos...', 'info');
+      } finally {
+        this.statsLoading = false;
+      }
+    },
+    
+    // CARREGAR DADOS MOCKADOS PARA INTERFACE RESPONDER
+    loadMockData() {
+      console.log('Carregando dados mockados...');
+      
+      this.dashboardStats = {
+        solicitacoes: 0,
+        agendamentos: 0,
+        conferencia: 0,
+        tratativa: 0
+      };
+      
+      this.schedules = [];
+      this.availableClients = [];
+      
+      console.log('Dados mockados carregados');
+    },
+    
+    // CARREGAR DADOS REAIS EM BACKGROUND (SEM BLOQUEAR)
+    async loadRealDataInBackground() {
+      console.log('=== CARREGANDO DADOS REAIS EM BACKGROUND ===');
+      
+      try {
+        // Tentar carregar agendamentos
+        const response = await apiClient.request('/schedules', {
+          method: 'GET',
+          params: {
+            page: 1,
+            limit: 50
+          }
+        });
         
-        if (error.message === 'Timeout na requisição inicial') {
-          this.addNotification('Sistema carregado - dados sendo atualizados...', 'warning')
-        } else {
-          this.addNotification('Dados sendo carregados - interface pode demorar um pouco', 'info')
+        if (response && response.schedules) {
+          console.log('Dados reais carregados:', response.schedules.length, 'agendamentos');
+          this.schedules = response.schedules;
+          this.calculateStatsFromData(response.schedules);
         }
         
-        // Tentar novamente após um delay
-        setTimeout(() => {
-          this.loadEssentialDataOptimized().catch(err => {
-            console.error('Erro na segunda tentativa:', err)
-          })
-        }, 2000)
-        
-      } finally {
-        this.statsLoading = false
+      } catch (error) {
+        console.error('Erro ao carregar dados reais:', error);
+        // Não fazer nada - deixar dados mockados
+        this.addNotification('Dados sendo carregados - pode demorar um pouco', 'info');
       }
     },
 

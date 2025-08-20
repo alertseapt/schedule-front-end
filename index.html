@@ -9,6 +9,42 @@
 </head>
 <body>
     <div id="app"></div>
+    <!-- Configuração dinâmica da API - pode ser editado após o build -->
+    <script src="/config.js"></script>
+    <script>
+        // CAPTURA GLOBAL DE ERROS
+        window.addEventListener('error', function(event) {
+            console.log('=== ERRO JAVASCRIPT CAPTURADO (INDEX.HTML) ===');
+            console.log('Mensagem:', event.message);
+            console.log('Arquivo:', event.filename);
+            console.log('Linha:', event.lineno);
+            console.log('Coluna:', event.colno);
+            console.log('Erro:', event.error);
+            console.log('Stack trace:', event.error?.stack);
+        });
+
+        window.addEventListener('unhandledrejection', function(event) {
+            console.log('=== PROMISE REJEITADA CAPTURADA (INDEX.HTML) ===');
+            console.log('Motivo:', event.reason);
+            console.log('Promise:', event.promise);
+        });
+
+        // DEBUG: Interceptar localStorage.removeItem para detectar quando token é removido
+        const originalRemoveItem = localStorage.removeItem;
+        localStorage.removeItem = function(key) {
+            if (key === 'token' || key === 'authToken' || key === 'user') {
+                console.log('=== [INDEX.HTML] TOKEN/USER REMOVIDO ===');
+                console.log('Key removida:', key);
+                console.log('Stack trace:', new Error().stack);
+            }
+            return originalRemoveItem.call(this, key);
+        };
+        
+        console.log('=== INDEX.HTML CARREGADO ===');
+        console.log('URL atual:', window.location.href);
+        console.log('Token no localStorage:', !!localStorage.getItem('token'));
+        console.log('User no localStorage:', !!localStorage.getItem('user'));
+    </script>
     <script type="module" src="/src/main.js"></script>
 </body>
 </html>

@@ -289,13 +289,17 @@ export default {
 
         // Verificar se é erro de autenticação
         if (error.response?.status === 401 || error.response?.status === 403) {
+          console.log('=== SCHEDULES LIST: ERRO 401/403 ===');
+          console.log('REMOVENDO REDIRECIONAMENTO AUTOMÁTICO');
+          console.log('Deixando que o usuário continue usando a interface');
+          
           this.$emit('notification', {
-            type: 'error',
-            message: 'Erro de autenticação. Por favor, faça login novamente.',
+            type: 'warning',
+            message: 'Sessão expirada. Alguns dados podem não carregar.',
           })
-          // Redirecionar para login se necessário
-          localStorage.removeItem('token')
-          window.location.href = '/index.html'
+          
+          // NÃO remover token nem redirecionar automaticamente
+          // Apenas logar o erro
           return
         }
 

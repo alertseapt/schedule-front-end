@@ -799,9 +799,40 @@
         </div>
     </div>
 
+    <!-- Configuração dinâmica da API -->
+    <script src="/config.js"></script>
     <script>
         // Configuração da API
-        const API_BASE_URL = 'http://localhost:4000/api';
+        const API_BASE_URL = window.API_URL || 'http://localhost:4000/api';
+        console.log('Schedule-verification - URL da API carregada:', API_BASE_URL);
+
+        // CAPTURA GLOBAL DE ERROS
+        window.addEventListener('error', function(event) {
+            console.log('=== ERRO JAVASCRIPT CAPTURADO (SCHEDULE-VERIFICATION) ===');
+            console.log('Mensagem:', event.message);
+            console.log('Arquivo:', event.filename);
+            console.log('Linha:', event.lineno);
+            console.log('Coluna:', event.colno);
+            console.log('Erro:', event.error);
+            console.log('Stack trace:', event.error?.stack);
+        });
+
+        window.addEventListener('unhandledrejection', function(event) {
+            console.log('=== PROMISE REJEITADA CAPTURADA (SCHEDULE-VERIFICATION) ===');
+            console.log('Motivo:', event.reason);
+            console.log('Promise:', event.promise);
+        });
+
+        // DEBUG: Interceptar localStorage.removeItem para detectar quando token é removido
+        const originalRemoveItem = localStorage.removeItem;
+        localStorage.removeItem = function(key) {
+            if (key === 'token' || key === 'authToken' || key === 'user') {
+                console.log('=== [SCHEDULE-VERIFICATION] TOKEN/USER REMOVIDO ===');
+                console.log('Key removida:', key);
+                console.log('Stack trace:', new Error().stack);
+            }
+            return originalRemoveItem.call(this, key);
+        };
 
         // Elementos DOM
         const verificationForm = document.getElementById('verificationForm');
@@ -827,39 +858,34 @@
             e.preventDefault();
         });
 
-        // Verificar autenticação e carregar dados do usuário
+        // SISTEMA SIMPLES - SEM VERIFICAÇÕES COMPLEXAS
         document.addEventListener('DOMContentLoaded', function() {
-            const token = localStorage.getItem('token');
+            console.log('=== SCHEDULE-VERIFICATION.HTML CARREGADA ===');
+            
+            // Carregar dados do localStorage (já validado no main.js)
             const userData = localStorage.getItem('user');
             
-            if (!token || !userData) {
-                window.location.href = '/login.html';
-                return;
-            }
-
-            try {
-                const user = JSON.parse(userData);
-                
-                // Verificar se o usuário tem nível 9 (verificação)
-                if (user.level_access !== 9) {
-                    alert('Acesso negado. Esta página é exclusiva para usuários de verificação.');
-                    window.location.href = '/';
-                    return;
+            if (userData) {
+                try {
+                    const user = JSON.parse(userData);
+                    console.log('Usuário carregado:', user);
+                    console.log('Level access:', user.level_access);
+                    
+                    // Atualizar nome do usuário na interface
+                    const userNameElement = document.getElementById('userNameTop');
+                    if (userNameElement) {
+                        userNameElement.querySelector('span').textContent = user.user || user.name || 'Usuário';
+                    }
+                    
+                    console.log('Página de verificação carregada com sucesso');
+                    
+                } catch (error) {
+                    console.error('Erro ao processar dados do usuário:', error);
                 }
-
-                // Atualizar nome do usuário no elemento já existente
-                const userNameElement = document.getElementById('userNameTop');
-                if (userNameElement) {
-                    userNameElement.querySelector('span').textContent = user.user || user.name || 'Usuário';
-                }
-
-                // Focar no input
-                nfInput.focus();
-
-            } catch (error) {
-                console.error('Erro ao carregar dados do usuário:', error);
-                window.location.href = '/login.html';
             }
+            
+            // Focar no input
+            nfInput.focus();
         });
 
         // Manipulador do formulário de verificação
@@ -905,7 +931,7 @@
             
             if (!token) {
                 showError('Token de autenticação não encontrado. Faça login novamente.');
-                window.location.href = '/login.html';
+                const loginUrl = `http://${window.location.host}/login.html`; window.location.href = loginUrl;
                 return;
             }
 
@@ -928,7 +954,7 @@
                         showError('Sessão expirada. Faça login novamente.');
                         localStorage.removeItem('token');
                         localStorage.removeItem('user');
-                        window.location.href = '/login.html';
+                        const loginUrl = `http://${window.location.host}/login.html`; window.location.href = loginUrl;
                         return;
                     }
                     
@@ -1159,7 +1185,7 @@
             
             if (!token) {
                 showError('Token de autenticação não encontrado. Faça login novamente.');
-                window.location.href = '/login.html';
+                const loginUrl = `http://${window.location.host}/login.html`; window.location.href = loginUrl;
                 return;
             }
 
@@ -1218,7 +1244,7 @@
                         showError('Sessão expirada. Faça login novamente.');
                         localStorage.removeItem('token');
                         localStorage.removeItem('user');
-                        window.location.href = '/login.html';
+                        const loginUrl = `http://${window.location.host}/login.html`; window.location.href = loginUrl;
                         return;
                     }
                     
@@ -1265,7 +1291,7 @@
                 localStorage.removeItem('token');
                 localStorage.removeItem('user');
                 localStorage.removeItem('authToken');
-                window.location.href = '/login.html';
+                const loginUrl = `http://${window.location.host}/login.html`; window.location.href = loginUrl;
             }
         }
 

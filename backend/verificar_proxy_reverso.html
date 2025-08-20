@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Proxy Reverso</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        .container {
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .success {
+            color: #27ae60;
+            font-weight: bold;
+        }
+        .error {
+            color: #e74c3c;
+            font-weight: bold;
+        }
+        .warning {
+            color: #f39c12;
+            font-weight: bold;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        #results {
+            margin-top: 20px;
+        }
+        .test-item {
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+        }
+    </style>
+</head>
+<body>
+    <h1>Teste de Configuração de Proxy Reverso</h1>
+    
+    <div class="container">
+        <h2>Instruções</h2>
+        <p>Este arquivo ajuda a diagnosticar problemas na configuração do proxy reverso entre IIS e API Flask.</p>
+        <p>Clique no botão abaixo para executar os testes de configuração:</p>
+        <button id="runTests">Executar Testes</button>
+    </div>
+    
+    <div id="results"></div>
+
+    <script>
+        document.getElementById('runTests').addEventListener('click', async () => {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<h2>Resultados dos Testes</h2>';
+            
+            // Teste 1: Verificar a URL da API
+            const testApiUrl = document.createElement('div');
+            testApiUrl.className = 'test-item';
+            testApiUrl.innerHTML = '<h3>Teste 1: Verificação da URL da API</h3>';
+            
+            try {
+                const apiUrl = window.API_URL || '/api';
+                testApiUrl.innerHTML += `<p>URL da API detectada: <strong>${apiUrl}</strong></p>`;
+                
+                if (apiUrl === '/api') {
+                    testApiUrl.innerHTML += '<p class="success">✅ URL da API está configurada corretamente para proxy reverso.</p>';
+                } else if (apiUrl.includes('localhost')) {
+                    testApiUrl.innerHTML += '<p class="warning">⚠️ A URL da API aponta para localhost. Isso é normal em ambiente de desenvolvimento, mas não é ideal para produção com proxy reverso.</p>';
+                } else {
+                    testApiUrl.innerHTML += '<p class="warning">⚠️ A URL da API não está configurada para proxy reverso local (/api). O proxy reverso pode não estar funcionando corretamente.</p>';
+                }
+            } catch (error) {
+                testApiUrl.innerHTML += `<p class="error">❌ Erro ao verificar URL da API: ${error.message}</p>`;
+            }
+            
+            resultsDiv.appendChild(testApiUrl);
+            
+            // Teste 2: Verificar o health check da API
+            const testHealthCheck = document.createElement('div');
+            testHealthCheck.className = 'test-item';
+            testHealthCheck.innerHTML = '<h3>Teste 2: Health Check da API</h3>';
+            
+            try {
+                const apiUrl = window.API_URL || '/api';
+                testHealthCheck.innerHTML += '<p>Testando conexão com a API...</p>';
+                
+                const startTime = new Date().getTime();
+                const response = await fetch(`${apiUrl}/health`, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' },
+                });
+                const endTime = new Date().getTime();
+                const timeElapsed = endTime - startTime;
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    testHealthCheck.innerHTML += `<p class="success">✅ API respondeu com sucesso em ${timeElapsed}ms!</p>`;
+                    testHealthCheck.innerHTML += '<p>Detalhes da resposta:</p>';
+                    testHealthCheck.innerHTML += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                } else {
+                    const errorText = await response.text();
+                    testHealthCheck.innerHTML += `<p class="error">❌ API retornou erro: ${response.status} ${response.statusText}</p>`;
+                    testHealthCheck.innerHTML += `<p>Resposta do erro:</p>`;
+                    testHealthCheck.innerHTML += `<pre>${errorText}</pre>`;
+                }
+            } catch (error) {
+                testHealthCheck.innerHTML += `<p class="error">❌ Falha ao conectar com a API: ${error.message}</p>`;
+                testHealthCheck.innerHTML += `<p>Este erro geralmente indica que o proxy reverso não está funcionando ou a API não está rodando.</p>`;
+            }
+            
+            resultsDiv.appendChild(testHealthCheck);
+            
+            // Teste 3: Verificar cabeçalhos CORS
+            const testCors = document.createElement('div');
+            testCors.className = 'test-item';
+            testCors.innerHTML = '<h3>Teste 3: Verificação de Cabeçalhos CORS</h3>';
+            
+            try {
+                const apiUrl = window.API_URL || '/api';
+                testCors.innerHTML += '<p>Testando cabeçalhos CORS com OPTIONS...</p>';
+                
+                const response = await fetch(`${apiUrl}/health`, {
+                    method: 'OPTIONS',
+                    headers: { 
+                        'Accept': 'application/json',
+                        'Origin': window.location.origin
+                    },
+                });
+                
+                const allowOrigin = response.headers.get('Access-Control-Allow-Origin');
+                const allowMethods = response.headers.get('Access-Control-Allow-Methods');
+                const allowHeaders = response.headers.get('Access-Control-Allow-Headers');
+                
+                testCors.innerHTML += '<p>Cabeçalhos CORS detectados:</p>';
+                testCors.innerHTML += `<ul>
+                    <li>Access-Control-Allow-Origin: ${allowOrigin || 'não definido'}</li>
+                    <li>Access-Control-Allow-Methods: ${allowMethods || 'não definido'}</li>
+                    <li>Access-Control-Allow-Headers: ${allowHeaders || 'não definido'}</li>
+                </ul>`;
+                
+                if (allowOrigin) {
+                    if (allowOrigin === '*' || allowOrigin.includes(window.location.origin)) {
+                        testCors.innerHTML += '<p class="success">✅ Cabeçalho Access-Control-Allow-Origin está configurado corretamente.</p>';
+                    } else {
+                        testCors.innerHTML += `<p class="warning">⚠️ O cabeçalho Access-Control-Allow-Origin não inclui a origem atual (${window.location.origin}).</p>`;
+                    }
+                } else {
+                    testCors.innerHTML += '<p class="error">❌ Cabeçalho Access-Control-Allow-Origin não encontrado. CORS pode não estar configurado.</p>';
+                }
+                
+                if (allowMethods && allowMethods.includes('POST')) {
+                    testCors.innerHTML += '<p class="success">✅ Método POST está permitido nos cabeçalhos CORS.</p>';
+                } else {
+                    testCors.innerHTML += '<p class="warning">⚠️ Método POST pode não estar permitido nos cabeçalhos CORS.</p>';
+                }
+            } catch (error) {
+                testCors.innerHTML += `<p class="error">❌ Falha ao verificar cabeçalhos CORS: ${error.message}</p>`;
+            }
+            
+            resultsDiv.appendChild(testCors);
+            
+            // Teste 4: Verificar conexão do login
+            const testLogin = document.createElement('div');
+            testLogin.className = 'test-item';
+            testLogin.innerHTML = '<h3>Teste 4: Verificação de Endpoint de Login</h3>';
+            
+            try {
+                const apiUrl = window.API_URL || '/api';
+                testLogin.innerHTML += '<p>Tentando acessar o endpoint de login (apenas teste OPTIONS, sem enviar credenciais)...</p>';
+                
+                const response = await fetch(`${apiUrl}/auth/login`, {
+                    method: 'OPTIONS',
+                    headers: { 
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'Origin': window.location.origin
+                    }
+                });
+                
+                if (response.ok || response.status === 204) {
+                    testLogin.innerHTML += `<p class="success">✅ Endpoint de login está acessível via OPTIONS!</p>`;
+                } else {
+                    testLogin.innerHTML += `<p class="error">❌ Endpoint de login retornou erro em OPTIONS: ${response.status} ${response.statusText}</p>`;
+                }
+                
+                // Verificar conteúdo real com GET (apenas para ver o que retorna)
+                testLogin.innerHTML += '<p>Testando endpoint de login com GET (apenas diagnóstico)...</p>';
+                const getResponse = await fetch(`${apiUrl}/auth/login`, {
+                    method: 'GET',
+                    headers: { 'Accept': 'application/json' }
+                });
+                
+                const statusText = getResponse.ok ? 'sucesso' : 'erro';
+                const statusClass = getResponse.ok ? 'success' : 'warning';
+                
+                testLogin.innerHTML += `<p class="${statusClass}">Endpoint de login respondeu com ${statusText} (${getResponse.status}). Isso é apenas um teste diagnóstico, a rota de login geralmente só aceita POST.</p>`;
+                
+            } catch (error) {
+                testLogin.innerHTML += `<p class="error">❌ Falha ao acessar endpoint de login: ${error.message}</p>`;
+            }
+            
+            resultsDiv.appendChild(testLogin);
+            
+            // Adicionar diagnóstico e recomendações
+            const recommendations = document.createElement('div');
+            recommendations.className = 'container';
+            recommendations.innerHTML = '<h2>Diagnóstico e Recomendações</h2>';
+            recommendations.innerHTML += `
+                <p>Com base nos resultados acima, aqui estão algumas recomendações comuns:</p>
+                <ol>
+                    <li>Certifique-se de que a tag &lt;proxy enabled="true"&gt; está presente no web.config</li>
+                    <li>Verifique se o Application Request Routing (ARR) está habilitado no IIS</li>
+                    <li>Confirme que o backend Flask está rodando na porta 4000</li>
+                    <li>Certifique-se de que as regras de rewrite no web.config estão corretas</li>
+                    <li>Verifique se o CORS está configurado corretamente tanto no backend Flask quanto no web.config</li>
+                </ol>
+                <p>Para mais informações, consulte o arquivo README-PROXY-IIS.md incluído no projeto.</p>
+            `;
+            
+            resultsDiv.appendChild(recommendations);
+        });
+    </script>
+</body>
+</html>

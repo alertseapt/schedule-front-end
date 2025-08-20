@@ -28,7 +28,9 @@ class AuthGuard {
         if (data.user.level_access === 9) {
           // Se está tentando acessar o dashboard mas tem nível 9, redirecionar
           if (window.location.pathname.includes('index.html') || window.location.pathname === '/') {
-            window.location.href = '/schedule-verification.html'
+            const verificationUrl = `http://${window.location.host}/schedule-verification.html`;
+            console.log('Auth-guard - URL de verificação (HTTP forçado):', verificationUrl);
+            window.location.href = verificationUrl
             return
           }
         }
@@ -48,7 +50,9 @@ class AuthGuard {
     this.redirectToLogin()
   }
   redirectToLogin() {
-    window.location.href = '/login.html'
+    const loginUrl = `http://${window.location.host}/login.html`;
+    console.log('Auth-guard - URL de login (HTTP forçado):', loginUrl);
+    window.location.href = loginUrl
   }
   initializeDashboard() {
     // Pode adicionar lógica extra aqui se necessário
