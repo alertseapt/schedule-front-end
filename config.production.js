@@ -1,5 +1,5 @@
 // ===================================================
-// CONFIGURAÇÃO PARA PRODUÇÃO - recebhomolog.mercocamptech.com.br
+// CONFIGURAÇÃO PARA PRODUÇÃO - recebimento.mercocamptech.com.br
 // ===================================================
 // Use este arquivo no servidor de produção
 
@@ -8,7 +8,7 @@ window.API_CONFIG = {
   // AJUSTE CONFORME SEU SERVIDOR:
   
   // Opção 1: Backend no mesmo servidor (porta 4000)
-  API_URL: 'http://recebhomolog.mercocamptech.com.br:4000/api',
+  API_URL: 'http://recebimento.mercocamptech.com.br:4000/api',
   
   // Opção 2: Backend em servidor separado
   // API_URL: 'http://api.mercocamptech.com.br/api',

@@ -4,7 +4,7 @@
 # Este script configura o arquivo config.js para produção
 
 param (
-    [string]$Domain = "recebhomolog.mercocamptech.com.br",
+    [string]$Domain = "recebimento.mercocamptech.com.br",
     [string]$Protocol = "http",
     [int]$BackendPort = 4000
 )

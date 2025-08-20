@@ -3,7 +3,7 @@
 ## 📌 Problemas Resolvidos
 
 1. **Problema de CORS:**
-   - Frontend em `http://recebhomolog.mercocamptech.com.br` tentando acessar `http://localhost:4000/api`
+   - Frontend em `http://recebimento.mercocamptech.com.br` tentando acessar `http://localhost:4000/api`
    - URLs hardcoded nos arquivos HTML
 
 2. **Problema de Caminhos:**
@@ -30,13 +30,13 @@ Implementamos um sistema onde a URL da API é definida no arquivo `config.js`:
 ```javascript
 // No config.js
 window.API_CONFIG = {
-  API_URL: 'http://recebhomolog.mercocamptech.com.br:4000/api'
+  API_URL: 'http://recebimento.mercocamptech.com.br:4000/api'
 };
 ```
 
 ```javascript
 // Nos arquivos HTML
-let API_BASE_URL = 'http://recebhomolog.mercocamptech.com.br:4000/api';
+let API_BASE_URL = 'http://recebimento.mercocamptech.com.br:4000/api';
 if (window.API_URL) {
     API_BASE_URL = window.API_URL;
 }
@@ -48,8 +48,8 @@ No backend, adicionamos o domínio à lista de origens permitidas:
 
 ```javascript
 allowedOrigins: [
-  'https://recebhomolog.mercocamptech.com.br',
-  'http://recebhomolog.mercocamptech.com.br'
+  'https://recebimento.mercocamptech.com.br',
+  'http://recebimento.mercocamptech.com.br'
 ]
 ```
 

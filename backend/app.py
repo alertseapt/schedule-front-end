@@ -51,8 +51,8 @@ allowed_origins = [
     'http://127.0.0.1:8000',
     'null',
     'https://schedule-mercocamp-front-end2.vercel.app',
-    'https://recebhomolog.mercocamptech.com.br',
-    'http://recebhomolog.mercocamptech.com.br',
+    'https://recebimento.mercocamptech.com.br',
+    'http://recebimento.mercocamptech.com.br',
     # Adicionar origem específica para o IIS quando estiver no mesmo servidor
     'http://localhost',
     'http://localhost:80',

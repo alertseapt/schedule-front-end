@@ -13,7 +13,7 @@ const path = require('path');
 
 // Configurações
 const DIST_DIR = path.join(__dirname, 'dist');
-const PRODUCTION_API_URL = 'http://recebhomolog.mercocamptech.com.br:4000/api';
+const PRODUCTION_API_URL = 'http://recebimento.mercocamptech.com.br:4000/api';
 
 console.log('=== Post-Build para Produção ===');
 
