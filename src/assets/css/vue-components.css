@@ -604,7 +604,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    z-index: 1000;
+    z-index: 10000;
     padding: 20px;
 }
 
@@ -1208,7 +1208,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    z-index: 1001;
+    z-index: 10001;
     animation: fadeInOut 2s ease-in-out;
 }
 

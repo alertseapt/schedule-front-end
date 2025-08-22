@@ -128,9 +128,9 @@
                   </button>
                 </div>
                 
-                <!-- Actions for Conferência status (non-level 1 users can mark as Estoque) -->
+                <!-- Actions for Conferência status (non-level 1 users can mark as Em estoque) -->
                 <div v-if="(selectedScheduleStatuses[0] === 'Conferência' || selectedScheduleStatuses[0] === 'Recebido') && userLevel !== 1" class="conferencia-actions">
-                  <button class="btn btn-info action-btn" @click="markAsEstoque" :disabled="bulkActionLoading">
+                  <button class="btn btn-info action-btn" @click="markAsEmEstoque" :disabled="bulkActionLoading">
                     <i class="fas fa-warehouse"></i> Marcar como Em estoque
                   </button>
                 </div>
@@ -160,7 +160,7 @@
                 </div>
                 
                 <!-- Universal Cancel Button (all users can cancel) -->
-                <div v-if="selectedSchedules.length > 0 && !['Cancelar', 'Cancelado', 'Recusado', 'Estoque'].includes(selectedScheduleStatuses[0])" class="universal-actions">
+                <div v-if="selectedSchedules.length > 0 && !['Cancelar', 'Cancelado', 'Recusado', 'Em estoque', 'Estoque'].includes(selectedScheduleStatuses[0])" class="universal-actions">
                   <button class="btn btn-outline-danger action-btn" @click="cancelSchedules" :disabled="bulkActionLoading">
                     <i class="fas fa-ban"></i> 
                     Cancelar
@@ -295,33 +295,9 @@ import { checkPermission, checkUserLevel } from './utils/permissions.js'
 import { BASE_URL } from './config/api.js'
 import axios from 'axios'
 
-// Função que inicializa e demonstra o sistema de permissões
+// Função que inicializa o sistema de permissões
 function initializePermissions() {
-  console.log('=== Sistema de Permissões ===')
-
-  if (checkPermission('create_schedule')) {
-    console.log('✅ Usuário pode criar agendamentos')
-  } else {
-    console.log('❌ Usuário não pode criar agendamentos')
-  }
-
-  if (checkPermission('manage_users')) {
-    console.log('✅ Usuário pode gerenciar usuários')
-  } else {
-    console.log('❌ Usuário não pode gerenciar usuários')
-  }
-
-  if (checkUserLevel(0)) {
-    console.log('✅ Usuário é desenvolvedor - acesso total')
-  } else {
-    console.log('❌ Usuário não é desenvolvedor')
-  }
-
-  if (checkUserLevel(2)) {
-    console.log('✅ Usuário tem acesso administrativo')
-  } else {
-    console.log('❌ Usuário não tem acesso administrativo')
-  }
+  // Sistema de permissões inicializado silenciosamente
 }
 
 // Usar o apiClient global já otimizado com cache (importado de main.js)
@@ -633,7 +609,7 @@ export default {
       if (!Array.isArray(this.schedules)) return []
       
       // Filtrar status que não devem aparecer na página inicial
-      const hiddenStatuses = ['Estoque', 'Recusado', 'Cancelado']
+      const hiddenStatuses = ['Em estoque', 'Estoque', 'Recusado', 'Cancelado']
       return this.schedules.filter(schedule => 
         !hiddenStatuses.includes(schedule.status)
       )
@@ -711,7 +687,7 @@ export default {
         { value: 'Agendado', label: 'Agendado' },
         { value: 'Conferência', label: 'Em conferência' },
         { value: 'Tratativa', label: 'Em tratativa' },
-        { value: 'Estoque', label: 'Em estoque' },
+        { value: 'Em estoque', label: 'Em estoque' },
         { value: 'Cancelar', label: 'Cancelar' },
         { value: 'Cancelado', label: 'Cancelado' },
         { value: 'Recusado', label: 'Recusado' },
@@ -758,7 +734,7 @@ export default {
     },
   },
   async mounted() {
-    console.log('=== APP.VUE MONTADO ===');
+    // App.vue inicializado
     
     try {
       // Carregamento simples - sem verificações complexas
@@ -768,12 +744,11 @@ export default {
       this.loadUserFromStorage();
       
       // Carregar dados iniciais sem verificações de token
-      this.loadInitialDataSimple();
+      await this.loadInitialDataSimple();
       
       // Inicializar permissões
       initializePermissions();
       
-      this.setLoading(false);
       console.log('App.vue carregado com sucesso');
       
     } catch (error) {
@@ -797,14 +772,13 @@ export default {
     },
     // FUNÇÃO SIMPLES - APENAS CARREGA DO LOCALSTORAGE
     loadUserFromStorage() {
-      console.log('=== CARREGANDO USER DO LOCALSTORAGE ===');
+      // Carregando dados do usuário
       
       const userData = localStorage.getItem('user');
       if (userData) {
         try {
           this.user = JSON.parse(userData);
-          console.log('Usuário carregado:', this.user);
-          console.log('Level access:', this.user.level_access);
+          // Usuário carregado com sucesso
         } catch (error) {
           console.error('Erro ao parsear dados do usuário:', error);
           // Se não conseguir parsear, não faz nada - main.js já validou
@@ -909,8 +883,8 @@ export default {
       if (confirmed) {
         localStorage.removeItem('token')
         localStorage.removeItem('user')
-        const loginUrl = `http://${window.location.host}/login.html`;
-        console.log('Logout - URL de login (HTTP forçado):', loginUrl);
+        const loginUrl = '/login.html';
+        // Redirecionando para login
         window.location.href = loginUrl
       }
     },
@@ -1080,16 +1054,15 @@ export default {
       try {
         // Verificar token mais uma vez antes da requisição crítica
         const token = localStorage.getItem('token');
-        console.log('🎯 App.vue: Fazendo requisição para /schedules...');
-        console.log('🔑 Token disponível para requisição:', !!token);
+        // Carregando dados essenciais
         
         if (!token) {
-          console.log('❌ Sem token - cancelando requisição /schedules');
+          console.log('Token não disponível - cancelando requisição');
           throw new Error('Token não disponível para requisição');
         }
         
         // UMA ÚNICA REQUISIÇÃO para obter todos os dados necessários COM TIMEOUT
-        console.log('📡 Iniciando requisição /schedules com token:', token.substring(0, 20) + '...');
+        // Fazendo requisição para obter dados
         const response = await Promise.race([
           apiClient.request('/schedules', {
             method: 'GET',
@@ -1273,7 +1246,7 @@ export default {
     },
     canSelectSchedule(schedule) {
       // Verificar se pode selecionar baseado no status e permissões do usuário
-      const allowedStatuses = ['Solicitado', 'Contestado', 'Cancelar', 'Agendado', 'Conferência', 'Recebido', 'Tratativa', 'Estoque', 'Marcação']
+      const allowedStatuses = ['Solicitado', 'Contestado', 'Cancelar', 'Agendado', 'Conferência', 'Recebido', 'Tratativa', 'Em estoque', 'Estoque', 'Marcação']
       if (!allowedStatuses.includes(schedule.status)) return false
       
       // Usuários nível 1 agora podem selecionar marcações para efetivação
@@ -1296,7 +1269,8 @@ export default {
         Conferência: { class: 'success', label: 'Em conferência' },
         Recebido: { class: 'success', label: 'Em conferência' }, // Compatibilidade com dados antigos
         Tratativa: { class: 'danger', label: 'Em tratativa' },
-        Estoque: { class: 'success', label: 'Em estoque' },
+        'Em estoque': { class: 'success', label: 'Em estoque' },
+        'Estoque': { class: 'success', label: 'Em estoque' }, // Compatibilidade com dados antigos
         Recusar: { class: 'danger', label: 'Recusar' },
         Cancelar: { class: 'warning', label: 'Cancelar' },
         Recusado: { class: 'dark', label: 'Recusado' },
@@ -1678,7 +1652,7 @@ export default {
       }
     },
 
-    async markAsEstoque() {
+    async markAsEmEstoque() {
       if (this.selectedSchedules.length === 0) return
       
       if (!confirm(`Tem certeza que deseja marcar ${this.selectedSchedules.length} agendamento(s) como em estoque?`)) {
@@ -1687,7 +1661,7 @@ export default {
       
       this.setBulkActionLoading(true, 'Marcando como Em Estoque...', 'Atualizando status para estoque')
       try {
-        await this.bulkUpdateStatus('Estoque', 'Agendamento marcado como em estoque')
+        await this.bulkUpdateStatus('Em estoque', 'Agendamento marcado como em estoque')
         this.clearSelection()
         await this.refreshPageAfterAction(`${this.selectedSchedules.length} agendamento(s) marcado(s) como em estoque`)
       } catch (error) {
@@ -1776,7 +1750,8 @@ export default {
         'Agendado': 'Agendado',
         'Conferência': 'Em conferência',
         'Recebido': 'Em conferência',
-        'Estoque': 'Em estoque',
+        'Em estoque': 'Em estoque',
+        'Estoque': 'Em estoque', // Compatibilidade com dados antigos
         'Tratativa': 'Em tratativa',
         'Cancelar': 'Cancelar',
         'Cancelado': 'Cancelado',
@@ -2219,16 +2194,19 @@ export default {
         // Carregar dados mockados primeiro para interface responder
         this.loadMockData();
         
-        // Depois tentar carregar dados reais (sem bloquear se falhar)
-        setTimeout(() => {
-          this.loadRealDataInBackground();
-        }, 1000);
+        // Atualizar mensagem de loading
+        this.setLoading(true, 'Carregando Agendamentos...', 'Buscando dados mais recentes');
+        
+        // Carregar dados reais (aguardar conclusão)
+        await this.loadRealDataInBackground();
         
       } catch (error) {
         console.error('Erro ao carregar dados iniciais:', error);
         this.addNotification('Interface carregada - dados sendo obtidos...', 'info');
       } finally {
         this.statsLoading = false;
+        // Finalizar loading principal após carregar dados reais
+        this.setLoading(false);
       }
     },
     
@@ -2251,10 +2229,11 @@ export default {
     
     // CARREGAR DADOS REAIS EM BACKGROUND (SEM BLOQUEAR)
     async loadRealDataInBackground() {
-      console.log('=== CARREGANDO DADOS REAIS EM BACKGROUND ===');
+      console.log('=== CARREGANDO DADOS REAIS ===');
       
       try {
         // Tentar carregar agendamentos
+        console.log('📊 Buscando agendamentos da API...');
         const response = await apiClient.request('/schedules', {
           method: 'GET',
           params: {
@@ -2264,15 +2243,26 @@ export default {
         });
         
         if (response && response.schedules) {
-          console.log('Dados reais carregados:', response.schedules.length, 'agendamentos');
+          console.log('✅ Dados reais carregados:', response.schedules.length, 'agendamentos');
           this.schedules = response.schedules;
           this.calculateStatsFromData(response.schedules);
+          
+          // Atualizar mensagem de loading para próxima etapa
+          this.setLoading(true, 'Finalizando...', 'Carregando lista de clientes');
+          
+          // Carregar clientes disponíveis também
+          await this.loadClientsFromAPI();
+          
+          console.log('🎉 Carregamento completo!');
+        } else {
+          console.warn('⚠️ Resposta da API sem dados de agendamentos');
+          this.addNotification('Nenhum agendamento encontrado', 'info');
         }
         
       } catch (error) {
-        console.error('Erro ao carregar dados reais:', error);
-        // Não fazer nada - deixar dados mockados
-        this.addNotification('Dados sendo carregados - pode demorar um pouco', 'info');
+        console.error('❌ Erro ao carregar dados reais:', error);
+        this.addNotification('Erro ao carregar dados - usando dados locais', 'warning');
+        // Manter dados mockados em caso de erro
       }
     },
 
@@ -2281,6 +2271,8 @@ export default {
         console.log('🔄 Clientes já carregados ou carregamento em andamento')
         return
       }
+      
+      console.log('📋 Carregando lista de clientes...');
 
       this.clientsLoadingGlobal = true
       

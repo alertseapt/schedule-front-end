@@ -91,3 +91,4 @@ allowedOrigins: [
 - **Sempre use o arquivo `config.js`** para configurações
 - **Execute `npm run build`** antes de cada deploy
 - **Verifique sempre o backend** após atualizar o frontend
+

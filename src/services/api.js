@@ -6,12 +6,10 @@
 const getApiUrl = () => {
   // Verifica se a configuração global existe
   if (window.API_URL) {
-    console.log('Usando configuração global da API:', window.API_URL);
     return window.API_URL;
   }
   
   // Fallback para proxy reverso se config.js não estiver carregado
-  console.warn('config.js não encontrado, usando proxy reverso /api');
   return '/api';
 };
 
@@ -41,13 +39,8 @@ class ApiService {
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
     
-    // ATUALIZAR TOKEN SEMPRE antes de fazer requisição (pode ter mudado)
+    // Atualizar token antes de fazer requisição
     this.token = localStorage.getItem('token');
-    
-    console.log('=== API SERVICE REQUEST ===');
-    console.log('Endpoint:', endpoint);
-    console.log('URL completa:', url);
-    console.log('Token disponível:', !!this.token);
     
     // Configurar headers padrão
     const headers = {
@@ -58,9 +51,6 @@ class ApiService {
     // Adicionar token se existir
     if (this.token) {
       headers['Authorization'] = `Bearer ${this.token}`;
-      console.log('Token adicionado aos headers');
-    } else {
-      console.log('Nenhum token encontrado - requisição sem autenticação');
     }
 
     // Configurar timeout
@@ -87,15 +77,9 @@ class ApiService {
           // Ignorar erro ao parsear JSON
         }
 
-        // Tratar erros específicos - SEM REDIRECIONAMENTO AUTOMÁTICO
+        // Tratar erro 401
         if (response.status === 401) {
-          console.log('=== API SERVICE: ERRO 401 ===');
-          console.log('Endpoint que causou 401:', endpoint);
-          console.log('Token usado:', this.token ? 'presente' : 'ausente');
-          console.log('APENAS LOGANDO - SEM REDIRECIONAMENTO AUTOMÁTICO');
-          
-          // Apenas lançar erro - deixar que quem chama decida o que fazer
-          throw new Error('Token inválido ou expirado (401)');
+          throw new Error('Token inválido ou expirado');
         }
 
         throw new Error(errorMessage);
@@ -168,9 +152,7 @@ class ApiService {
       await this.post('/auth/logout');
     } finally {
       this.setAuthToken(null);
-      const loginUrl = `http://${window.location.host}/login.html`;
-      console.log('Logout API - URL de login (HTTP forçado):', loginUrl);
-      window.location.href = loginUrl;
+      window.location.href = '/login.html';
     }
   }
 
@@ -268,3 +250,4 @@ export { ApiService };
 if (typeof window !== 'undefined') {
   window.apiService = apiService;
 }
+

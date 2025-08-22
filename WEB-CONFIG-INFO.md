@@ -98,3 +98,4 @@ C:\inetpub\wwwroot\seu-site\
 ---
 
 **Nota:** Este `web.config` simples é suficiente para 99% dos casos de uso com Vue.js no IIS.
+

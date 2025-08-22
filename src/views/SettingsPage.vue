@@ -383,7 +383,7 @@ export default {
         },
         {
           key: 'estoque',
-          label: 'Estoque',
+          label: 'Em estoque',
           class: 'status-success'
         },
         {

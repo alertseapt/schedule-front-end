@@ -67,3 +67,4 @@ Write-Host "   '${Protocol}://${Domain}'" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "   Em app.js ou .env do backend adicione:" -ForegroundColor White
 Write-Host "   ALLOWED_ORIGINS=${Protocol}://${Domain}" -ForegroundColor Cyan
+

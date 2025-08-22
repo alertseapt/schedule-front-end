@@ -51,3 +51,4 @@ if ($pythonCmd) {
         Write-Host "  - Node.js: https://nodejs.org/" -ForegroundColor Gray
     }
 }
+

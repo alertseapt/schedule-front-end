@@ -107,3 +107,4 @@ Se ainda houver problemas, verifique:
 2. Se o Application Request Routing está habilitado no IIS
 3. Se o arquivo `web.config` está na pasta raiz do site
 4. Se os scripts `config.js` e `compatibilidade-login.js` estão sendo carregados corretamente
+

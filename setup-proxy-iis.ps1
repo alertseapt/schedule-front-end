@@ -124,3 +124,4 @@ Write-Host "3. Configure o backend para aceitar requisições do IIS:" -Foregrou
 Write-Host "   - Adicione 'localhost' às origens permitidas no CORS do backend" -ForegroundColor Gray
 Write-Host ""
 Write-Host "4. Copie toda a pasta dist para o IIS" -ForegroundColor White
+

@@ -175,7 +175,8 @@ export default {
         Conferência: { class: 'success', label: 'Conferência' },
         Recebido: { class: 'success', label: 'Conferência' }, // Compatibilidade com dados antigos
         Tratativa: { class: 'danger', label: 'Tratativa' },
-        Estoque: { class: 'success', label: 'Estoque' },
+        'Em estoque': { class: 'success', label: 'Em estoque' },
+        'Estoque': { class: 'success', label: 'Em estoque' }, // Compatibilidade com dados antigos
         Recusar: { class: 'danger', label: 'Recusar' },
         Cancelar: { class: 'warning', label: 'Cancelar' },
         Recusado: { class: 'dark', label: 'Recusado' },
@@ -239,7 +240,7 @@ export default {
         { value: 'Agendado', label: 'Agendado' },
         { value: 'Conferência', label: 'Conferência' },
         { value: 'Tratativa', label: 'Tratativa' },
-        { value: 'Estoque', label: 'Estoque' },
+        { value: 'Em estoque', label: 'Em estoque' },
         { value: 'Cancelar', label: 'Cancelar' },
         { value: 'Cancelado', label: 'Cancelado' },
         { value: 'Recusado', label: 'Recusado' },
@@ -463,7 +464,7 @@ export default {
 
     canSelectSchedule(schedule) {
       // Verificar se pode selecionar baseado no status e permissões do usuário
-      const allowedStatuses = ['Solicitado', 'Contestado', 'Cancelar', 'Agendado', 'Conferência', 'Recebido', 'Tratativa', 'Estoque', 'Marcação']
+      const allowedStatuses = ['Solicitado', 'Contestado', 'Cancelar', 'Agendado', 'Conferência', 'Recebido', 'Tratativa', 'Em estoque', 'Estoque', 'Marcação']
       if (!allowedStatuses.includes(schedule.status)) return false
 
       // Para agendamentos de marcação, verificar se usuário tem permissão
@@ -713,7 +714,7 @@ export default {
       
       this.bulkActionLoading = true
       try {
-        await this.bulkUpdateStatus('Estoque', 'Agendamento marcado como estoque')
+        await this.bulkUpdateStatus('Em estoque', 'Agendamento marcado como estoque')
         this.$emit('notification', {
           type: 'success',
           message: `${this.selectedSchedules.length} agendamento(s) marcado(s) como estoque`

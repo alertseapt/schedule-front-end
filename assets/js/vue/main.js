@@ -119,7 +119,7 @@ class VueApiClient {
       if (response.status === 401) {
         localStorage.removeItem('token')
         localStorage.removeItem('user')
-        const loginUrl = `http://${window.location.host}/login.html`; console.log('Vue main.js - URL de login (HTTP forçado):', loginUrl); window.location.href = loginUrl
+        const loginUrl = '/login.html'; window.location.href = loginUrl
         return
       }
       const data = await response.json()
@@ -232,7 +232,7 @@ const app = createApp({
       const token = localStorage.getItem('token')
       const userData = localStorage.getItem('user')
             if (!token || !userData) {
-        const loginUrl = `http://${window.location.host}/login.html`; console.log('Vue main.js - URL de login (HTTP forçado):', loginUrl); window.location.href = loginUrl
+        const loginUrl = '/login.html'; window.location.href = loginUrl
         return
             }
       this.user = JSON.parse(userData)
@@ -288,7 +288,7 @@ const app = createApp({
     logout() {
       localStorage.removeItem('token')
       localStorage.removeItem('user')
-      const loginUrl = `http://${window.location.host}/login.html`; console.log('Vue main.js - URL de login (HTTP forçado):', loginUrl); window.location.href = loginUrl
+      const loginUrl = '/login.html'; window.location.href = loginUrl
     },
   },
 })

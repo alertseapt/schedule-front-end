@@ -1,7 +1,7 @@
 <template>
   <div>
     <div style="color: blue; font-weight: bold;">DEBUG: ScheduleEditModal está sendo renderizado</div>
-    <div class="modal-overlay" @click="handleModalClick" style="z-index: 9999; display: flex !important; background: rgba(0,0,0,0.7);">
+    <div class="modal-overlay" @click="handleModalClick" style="display: flex !important; background: rgba(0,0,0,0.7);">
       <div
         class="modal-content large schedule-edit-modal"
         ref="modal"
@@ -81,7 +81,7 @@
                     <option value="Agendado">Agendado</option>
                     <option value="Conferência">Conferência</option>
                     <option value="Tratativa">Tratativa</option>
-                    <option value="Estoque">Estoque</option>
+                    <option value="Em estoque">Em estoque</option>
                     <option value="Recusar">Recusar</option>
                     <option value="Recusado">Recusado</option>
                     <option value="Cancelado">Cancelado</option>

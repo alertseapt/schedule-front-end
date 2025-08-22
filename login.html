@@ -120,65 +120,15 @@
     <script>
         // Configuração da API
         const API_BASE_URL = window.API_URL || 'http://localhost:4000/api';
-        console.log('URL da API carregada do config.js:', API_BASE_URL);
 
-        // CAPTURA GLOBAL DE ERROS
+        // Captura global de erros
         window.addEventListener('error', function(event) {
-            console.log('=== ERRO JAVASCRIPT CAPTURADO (LOGIN.HTML) ===');
-            console.log('Mensagem:', event.message);
-            console.log('Arquivo:', event.filename);
-            console.log('Linha:', event.lineno);
-            console.log('Coluna:', event.colno);
-            console.log('Erro:', event.error);
-            console.log('Stack trace:', event.error?.stack);
+            console.error('Erro JavaScript:', event.message);
         });
 
         window.addEventListener('unhandledrejection', function(event) {
-            console.log('=== PROMISE REJEITADA CAPTURADA (LOGIN.HTML) ===');
-            console.log('Motivo:', event.reason);
-            console.log('Promise:', event.promise);
+            console.error('Promise rejeitada:', event.reason);
         });
-
-        // DEBUG: Interceptar localStorage.removeItem para detectar quando token é removido
-        const originalRemoveItem = localStorage.removeItem;
-        localStorage.removeItem = function(key) {
-            if (key === 'token' || key === 'authToken' || key === 'user') {
-                console.log('=== TOKEN/USER REMOVIDO DO LOCALSTORAGE ===');
-                console.log('Key removida:', key);
-                console.log('Stack trace:', new Error().stack);
-            }
-            return originalRemoveItem.call(this, key);
-        };
-
-        // DEBUG: Interceptar window.location.href para detectar redirecionamentos
-        // Criar uma função wrapper para rastrear redirecionamentos
-        window.originalLocationHref = window.location.href;
-        
-        // Sobrescrever apenas window.location.replace para rastrear
-        const originalReplace = window.location.replace;
-        window.location.replace = function(url) {
-            console.log('=== REDIRECIONAMENTO DETECTADO (replace) ===');
-            console.log('De:', window.location.href);
-            console.log('Para:', url);
-            console.log('Stack trace:', new Error().stack);
-            return originalReplace.call(this, url);
-        };
-        
-        // Função helper para redirecionamento com log (forçando HTTP)
-        window.redirectTo = function(url) {
-            console.log('=== REDIRECIONAMENTO DETECTADO (redirectTo) ===');
-            console.log('De:', window.location.href);
-            console.log('Para (original):', url);
-            
-            // Forçar HTTP em vez de HTTPS
-            const httpUrl = url.startsWith('/') 
-                ? `http://${window.location.host}${url}`
-                : url.replace('https://', 'http://');
-            
-            console.log('Para (HTTP forçado):', httpUrl);
-            console.log('Stack trace:', new Error().stack);
-            window.location.href = httpUrl;
-        };
 
         // Elementos DOM
         const loginForm = document.getElementById('loginForm');
@@ -217,43 +167,19 @@
             icon.className = type === 'password' ? 'fas fa-eye' : 'fas fa-eye-slash';
         });
 
-        // SISTEMA SIMPLES - SEM VERIFICAÇÃO AUTOMÁTICA
-        console.log('=== SCRIPT INICIADO ===');
-        console.log('DOM ready state:', document.readyState);
-        
-        // Função para inicializar tudo
+        // Função para inicializar a página
         function initializePage() {
-            console.log('=== LOGIN.HTML CARREGADO ===');
-            console.log('Página de login carregada - aguardando credenciais do usuário');
-            console.log('DOM ready state atual:', document.readyState);
-            
-            // VERIFICAR O QUE JÁ EXISTE NO LOCALSTORAGE
-            const existingToken = localStorage.getItem('token');
-            const existingUser = localStorage.getItem('user');
-            console.log('Token existente encontrado:', !!existingToken);
-            console.log('User existente encontrado:', !!existingUser);
-            
-            if (existingToken) {
-                console.log('Token existente:', existingToken.substring(0, 20) + '...');
-            }
-            if (existingUser) {
-                console.log('User existente:', existingUser);
-            }
-
             // Auto-complete se lembrar usuário
             const rememberedUser = localStorage.getItem('rememberedUser');
             if (rememberedUser) {
                 try {
                     document.getElementById('username').value = rememberedUser;
                     document.getElementById('rememberMe').checked = true;
-                    console.log('Usuário lembrado carregado:', rememberedUser);
                 } catch (e) {
                     console.error('Erro ao recuperar usuário lembrado:', e);
                 }
             }
             
-            // Configurar listeners do formulário
-            console.log('=== CHAMANDO setupFormListeners ===');
             setupFormListeners();
         }
         
@@ -261,206 +187,75 @@
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', initializePage);
         } else {
-            console.log('DOM já está carregado, executando imediatamente');
             initializePage();
         }
 
-        // DEBUG: Função para configurar listeners (será chamada quando DOM estiver pronto)
+        // Configurar listeners do formulário
         function setupFormListeners() {
-            console.log('=== CONFIGURANDO FORM LISTENERS ===');
-            
-            // DEBUG: Verificar se elementos existem
-            console.log('=== VERIFICANDO ELEMENTOS DOM ===');
-            console.log('loginForm encontrado:', !!loginForm);
-            console.log('loginBtn encontrado:', !!loginBtn);
-            console.log('username input encontrado:', !!document.getElementById('username'));
-            console.log('password input encontrado:', !!document.getElementById('password'));
-
-            // DEBUG: Adicionar listeners de click no botão
-            if (loginBtn) {
-                loginBtn.addEventListener('click', function(e) {
-                    console.log('=== BOTÃO LOGIN CLICADO ===');
-                    console.log('Event:', e);
-                    console.log('Button disabled:', loginBtn.disabled);
-                    console.log('Form will submit:', !e.defaultPrevented);
-                });
+            if (!loginForm) {
+                console.error('Formulário de login não encontrado');
+                return;
             }
 
-            // DEBUG: Adicionar listeners nos inputs para detectar quando usuário digita
-            const usernameInput = document.getElementById('username');
-            const passwordInput = document.getElementById('password');
-            
-            if (usernameInput) {
-                usernameInput.addEventListener('input', function() {
-                    console.log('=== USERNAME INPUT ALTERADO ===');
-                    console.log('Valor atual:', this.value);
-                });
-            }
-            
-            if (passwordInput) {
-                passwordInput.addEventListener('input', function() {
-                    console.log('=== PASSWORD INPUT ALTERADO ===');
-                    console.log('Tamanho atual:', this.value.length);
-                });
-            }
-
-            // DEBUG: Verificar se form está sendo submetido
-            if (loginForm) {
-                console.log('Adicionando listener ao form...');
+            // Sistema de login
+            loginForm.addEventListener('submit', async function(e) {
+                e.preventDefault();
                 
-                // Adicionar múltiplos listeners para capturar qualquer evento
-                loginForm.addEventListener('submit', function(e) {
-                    console.log('=== FORM SUBMIT EVENT CAPTURADO ===');
-                    console.log('Event type:', e.type);
-                    console.log('Event target:', e.target);
-                    console.log('Default prevented:', e.defaultPrevented);
-                });
-
-                // SISTEMA SIMPLES DE LOGIN
-                loginForm.addEventListener('submit', async function(e) {
-                    console.log('=== LISTENER DE LOGIN EXECUTADO ===');
-                    e.preventDefault();
-                    
-                    const username = document.getElementById('username').value.trim();
-                    const password = document.getElementById('password').value;
-                    const rememberMe = document.getElementById('rememberMe').checked;
-                    
-                    console.log('=== VALORES DO FORMULÁRIO ===');
-                    console.log('Username:', username);
-                    console.log('Password length:', password.length);
-                    console.log('Remember me:', rememberMe);
-                    
-                    // Validação básica
-                    if (!username || !password) {
-                        console.log('=== VALIDAÇÃO FALHOU ===');
-                        showError('Por favor, preencha todos os campos');
-                        return;
-                    }
-                    
-                    console.log('=== INICIANDO LOGIN ===');
-                    console.log('Usuário:', username);
-                    console.log('API URL:', API_BASE_URL);
-            
-            // Mostrar loading
-            setLoadingState(true);
-            
-            try {
-                console.log('=== FAZENDO REQUISIÇÃO DE LOGIN ===');
-                console.log('URL da requisição:', `${API_BASE_URL}/auth/login`);
-                console.log('Dados enviados:', { username, password: '***' });
+                const username = document.getElementById('username').value.trim();
+                const password = document.getElementById('password').value;
+                const rememberMe = document.getElementById('rememberMe').checked;
                 
-                const response = await fetch(`${API_BASE_URL}/auth/login`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        username: username,
-                        password: password
-                    })
-                });
-                
-                console.log('=== RESPOSTA RECEBIDA ===');
-                console.log('Response status:', response.status);
-                console.log('Response ok:', response.ok);
-                console.log('Response headers:', response.headers);
-                
-                const data = await response.json();
-                console.log('=== DADOS DA RESPOSTA ===');
-                console.log('Response data completa:', data);
-                console.log('Token presente:', !!data.token);
-                console.log('User presente:', !!data.user);
-                if (data.user) {
-                    console.log('User level_access:', data.user.level_access);
-                    console.log('User name/user:', data.user.name, data.user.user);
+                // Validação básica
+                if (!username || !password) {
+                    showError('Por favor, preencha todos os campos');
+                    return;
                 }
+            
+                // Mostrar loading
+                setLoadingState(true);
                 
-                if (response.ok && data.token && data.user) {
-                    console.log('=== LOGIN SUCESSO ===');
-                    console.log('Token recebido:', data.token.substring(0, 20) + '...');
-                    console.log('User data:', data.user);
-                    console.log('Level access:', data.user.level_access);
+                try {
+                    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            username: username,
+                            password: password
+                        })
+                    });
                     
-                    console.log('=== SALVANDO NO LOCALSTORAGE ===');
-                    console.log('Antes de salvar - Token exists:', !!localStorage.getItem('token'));
-                    console.log('Antes de salvar - User exists:', !!localStorage.getItem('user'));
+                    const data = await response.json();
                     
-                    // Salvar dados SIMPLES
-                    localStorage.setItem('token', data.token);
-                    localStorage.setItem('user', JSON.stringify(data.user));
-                    
-                    console.log('=== VERIFICANDO SE FOI SALVO ===');
-                    const savedToken = localStorage.getItem('token');
-                    const savedUser = localStorage.getItem('user');
-                    console.log('Token salvo com sucesso:', !!savedToken);
-                    console.log('User salvo com sucesso:', !!savedUser);
-                    
-                    if (savedToken) {
-                        console.log('Token salvo (primeiros 20 chars):', savedToken.substring(0, 20) + '...');
-                    }
-                    if (savedUser) {
-                        console.log('User salvo:', savedUser);
-                        try {
-                            const parsedUser = JSON.parse(savedUser);
-                            console.log('User parsed level_access:', parsedUser.level_access);
-                        } catch (e) {
-                            console.error('Erro ao parsear user salvo:', e);
+                    if (response.ok && data.token && data.user) {
+                        // Salvar dados de autenticação
+                        localStorage.setItem('token', data.token);
+                        localStorage.setItem('user', JSON.stringify(data.user));
+                        
+                        // Salvar usuário se lembrar
+                        if (rememberMe) {
+                            localStorage.setItem('rememberedUser', username);
                         }
-                    }
-                    
-                    // Salvar usuário se lembrar
-                    if (rememberMe) {
-                        localStorage.setItem('rememberedUser', username);
-                        console.log('Usuário lembrado salvo:', username);
-                    }
-                    
-                    console.log('=== AGUARDANDO 2 SEGUNDOS ANTES DO REDIRECIONAMENTO ===');
-                    setTimeout(() => {
-                        console.log('=== INICIANDO REDIRECIONAMENTO ===');
-                        console.log('Level access para redirecionamento:', data.user.level_access);
                         
-                        // Verificação final para garantir que os dados foram salvos
-                        const finalToken = localStorage.getItem('token');
-                        const finalUser = localStorage.getItem('user');
-                        console.log('=== VERIFICAÇÃO FINAL ANTES DO REDIRECIONAMENTO ===');
-                        console.log('Token final salvo:', !!finalToken);
-                        console.log('User final salvo:', !!finalUser);
+                        // Desabilitar loading e redirecionar
+                        setLoadingState(false);
                         
-                        if (finalToken && finalUser) {
-                            if (data.user.level_access === 9) {
-                                console.log('Usuário nível 9 → Página de verificação');
-                                const url = `http://${window.location.host}/schedule-verification.html`;
-                                console.log('Redirecionando para:', url);
-                                console.log('Executando: window.location.href = url');
-                                window.location.href = url;
-                            } else {
-                                console.log('Usuário normal → Dashboard');
-                                const url = `http://${window.location.host}/`;
-                                console.log('Redirecionando para:', url);
-                                console.log('Executando: window.location.href = url');
-                                window.location.href = url;
-                            }
+                        if (data.user.level_access === 9) {
+                            window.location.href = '/schedule-verification.html';
                         } else {
-                            console.error('ERRO: Dados não foram salvos corretamente no localStorage');
-                            showError('Erro ao salvar dados de autenticação. Tente novamente.');
+                            window.location.href = '/';
                         }
-                    }, 2000);
-                } else {
-                    console.log('=== LOGIN FALHOU ===');
-                    throw new Error(data.message || data.error || 'Credenciais inválidas');
-                }
+                    } else {
+                        throw new Error(data.message || data.error || 'Credenciais inválidas');
+                    }
                 
-            } catch (error) {
-                console.error('=== ERRO NO LOGIN ===');
-                console.error('Erro:', error);
-                showError(error.message || 'Erro de conexão');
-            } finally {
-                setLoadingState(false);
-            }
-        });
-            } else {
-                console.log('ERRO: loginForm não encontrado!');
-            }
+                } catch (error) {
+                    console.error('Erro no login:', error);
+                    showError(error.message || 'Erro de conexão');
+                    setLoadingState(false);
+                }
+            });
         }
 
         // Funções auxiliares

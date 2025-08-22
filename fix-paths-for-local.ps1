@@ -33,3 +33,4 @@ Write-Host ""
 Write-Host "⚠️ IMPORTANTE:" -ForegroundColor Yellow
 Write-Host "  Para deploy no IIS, execute 'npm run build' novamente" -ForegroundColor White
 Write-Host "  (os caminhos absolutos funcionam corretamente no servidor)" -ForegroundColor White
+

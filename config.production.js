@@ -27,3 +27,4 @@ window.API_CONFIG = {
 // Exportar URL final
 window.API_URL = window.API_CONFIG.API_URL;
 console.log('API configurada para produção:', window.API_URL);
+

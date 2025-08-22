@@ -318,7 +318,7 @@ export default {
       
       // Verificar se o status atual permite mudança para tratativa
       const currentStatus = this.nfeData?.status
-      const blockedStatuses = ['Estoque', 'Recusado', 'Cancelado', 'Tratativa']
+      const blockedStatuses = ['Em estoque', 'Estoque', 'Recusado', 'Cancelado', 'Tratativa']
       
       return currentStatus && !blockedStatuses.includes(currentStatus)
     },
@@ -344,7 +344,7 @@ export default {
         { value: 'Agendado', label: 'Agendado' },
         { value: 'Conferência', label: 'Em conferência' },
         { value: 'Recebido', label: 'Em conferência' },
-        { value: 'Estoque', label: 'Em estoque' },
+        { value: 'Em estoque', label: 'Em estoque' },
         { value: 'Cancelar', label: 'Cancelar' },
         { value: 'Cancelado', label: 'Cancelado' },
         { value: 'Recusado', label: 'Recusado' }

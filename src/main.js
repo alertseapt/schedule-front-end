@@ -89,7 +89,7 @@ setTimeout(() => {
   // VERIFICAÇÃO SIMPLES - SEM CHAMADAS DE API
   if (!token || !userData) {
     console.log('=== SEM TOKEN/USER - REDIRECIONANDO PARA LOGIN ===');
-    const loginUrl = `http://${window.location.host}/login.html`;
+    const loginUrl = '/login.html';
     console.log('Redirecionando para:', loginUrl);
     window.location.href = loginUrl;
   } else {
@@ -108,7 +108,7 @@ setTimeout(() => {
         // Usuário nível 9 deve estar na página de verificação
         if (currentPath === '/' || currentPath.includes('index.html')) {
           console.log('Usuário nível 9 na página errada - redirecionando');
-          const verificationUrl = `http://${window.location.host}/schedule-verification.html`;
+          const verificationUrl = '/schedule-verification.html';
           window.location.href = verificationUrl;
         } else {
           console.log('Usuário nível 9 na página correta');
@@ -117,7 +117,7 @@ setTimeout(() => {
         // Usuário normal deve estar no dashboard
         if (currentPath.includes('schedule-verification.html')) {
           console.log('Usuário normal na página de verificação - redirecionando para dashboard');
-          const dashboardUrl = `http://${window.location.host}/`;
+          const dashboardUrl = '/';
           window.location.href = dashboardUrl;
         } else {
           console.log('Usuário normal - carregando dashboard');
@@ -129,7 +129,7 @@ setTimeout(() => {
       }
     } catch (error) {
       console.error('Erro ao processar dados do usuário:', error);
-      const loginUrl = `http://${window.location.host}/login.html`;
+      const loginUrl = '/login.html';
       window.location.href = loginUrl;
     }
   }
