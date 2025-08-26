@@ -4,17 +4,24 @@
 // Use este arquivo no servidor de produção
 
 window.API_CONFIG = {
-  // URL fixa do backend em produção
-  // AJUSTE CONFORME SEU SERVIDOR:
-  
-  // Opção 1: Backend no mesmo servidor (porta 4000)
-  API_URL: 'http://recebimento.mercocamptech.com.br:4000/api',
-  
-  // Opção 2: Backend em servidor separado
-  // API_URL: 'http://api.mercocamptech.com.br/api',
-  
-  // Opção 3: Backend em IP específico
-  // API_URL: 'http://192.168.1.100:4000/api',
+  // Detecção automática baseada no domínio
+  getApiUrl: function() {
+    const hostname = window.location.hostname;
+    const fullUrl = window.location.href;
+    
+    console.log('🚀 [PRODUCTION CONFIG] Detectando ambiente...');
+    console.log('🚀 [PRODUCTION CONFIG] Hostname:', hostname);
+    
+    // Ambiente de homologação
+    if (hostname.includes('recebhomolog.mercocamptech.com.br') || fullUrl.includes('recebhomolog')) {
+      console.log('🚀 [PRODUCTION CONFIG] Ambiente: HOMOLOGAÇÃO - Proxy para porta 4001');
+      return '/api'; // Proxy reverso já configurado para redirecionar para porta 4001
+    }
+    
+    // Ambiente de produção (padrão)
+    console.log('🚀 [PRODUCTION CONFIG] Ambiente: PRODUÇÃO - Proxy para porta 4000');
+    return '/api'; // Proxy reverso já configurado para redirecionar para porta 4000
+  },
   
   // Configurações adicionais
   TIMEOUT: 30000,
@@ -24,7 +31,8 @@ window.API_CONFIG = {
   VERSION: '1.0.0'
 };
 
-// Exportar URL final
-window.API_URL = window.API_CONFIG.API_URL;
-console.log('API configurada para produção:', window.API_URL);
+// Determinar URL final
+window.API_URL = window.API_CONFIG.getApiUrl();
+console.log('🚀 [PRODUCTION CONFIG] API URL final:', window.API_URL);
+
 

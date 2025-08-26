@@ -40,19 +40,6 @@
       </div>
     </div>
 
-    <!-- User Info -->
-    <div class="user-info">
-      <div class="user-avatar">
-        <i class="fa fa-user"></i>
-      </div>
-      <div class="user-details">
-        <div class="user-name">{{ user.name || user.user || 'Usuário' }}</div>
-        <div class="user-role">{{ userRole }}</div>
-      </div>
-      <button class="logout-btn" @click="handleLogout" title="Sair">
-        <i class="fa fa-sign-out"></i>
-      </button>
-    </div>
   </aside>
 </template>
 
@@ -383,6 +370,8 @@ export default {
 .logo-shine {
   position: relative !important;
   overflow: hidden !important;
+  border-radius: 12px !important;
+  display: inline-block !important;
 }
 
 #app .logo-shine::after,
@@ -393,14 +382,25 @@ export default {
   left: -50% !important;
   width: 200% !important; 
   height: 200% !important;
-  background: linear-gradient(to right, rgba(255,255,255,0) 0%, rgba(255,255,255,0.3) 50%, rgba(255,255,255,0) 100%) !important;
-  transform: rotate(45deg) !important;
+  background: linear-gradient(45deg, rgba(255,255,255,0) 30%, rgba(255,255,255,0.6) 50%, rgba(255,255,255,0) 70%) !important;
+  transform: translateX(-100%) rotate(45deg) !important;
   animation: shine 3s infinite !important;
+  z-index: 1 !important;
+  pointer-events: none !important;
 }
 
 @keyframes shine {
-  0% { transform: translateX(-100%) rotate(45deg); }
-  20%, 100% { transform: translateX(100%) rotate(45deg); }
+  0% { 
+    transform: translateX(-100%) rotate(45deg);
+    opacity: 0;
+  }
+  50% { 
+    opacity: 1;
+  }
+  100% { 
+    transform: translateX(100%) rotate(45deg);
+    opacity: 0;
+  }
 }
 
 #app .sidebar-logo-img,
@@ -411,6 +411,26 @@ export default {
   border-radius: 12px !important;
   background: transparent !important;
   display: block !important;
+  position: relative !important;
+  z-index: 0 !important;
+}
+
+/* Efeito hover na logo para intensificar o brilho */
+#app .logo-shine:hover::after,
+.logo-shine:hover::after {
+  animation-duration: 1.5s !important;
+  background: linear-gradient(45deg, rgba(255,255,255,0) 20%, rgba(255,255,255,0.8) 50%, rgba(255,255,255,0) 80%) !important;
+}
+
+/* Container da logo */
+#app .logo-box,
+.logo-box {
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+  position: relative !important;
+  display: inline-block !important;
 }
 
 /* Garantir que todos os ícones sejam visíveis */

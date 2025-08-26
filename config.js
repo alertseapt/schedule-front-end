@@ -10,18 +10,42 @@ window.API_CONFIG = {
   getApiUrl: function() {
     const protocol = window.location.protocol;
     const hostname = window.location.hostname;
+    const fullUrl = window.location.href;
+    
+    console.log('🔧 [CONFIG] Detectando ambiente automaticamente...');
+    console.log('🔧 [CONFIG] Protocol:', protocol);
+    console.log('🔧 [CONFIG] Hostname:', hostname);
+    console.log('🔧 [CONFIG] Full URL:', fullUrl);
     
     // Desenvolvimento local
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
       if (window.location.port === '8000') {
-        // Rodando no servidor de desenvolvimento (frontend na porta 8000, backend na 4000)
-        return 'http://localhost:4000/api';
+        // Rodando no servidor de desenvolvimento (frontend na porta 8000)
+        // Usar backend de HOMOLOGAÇÃO (porta 4001) para testes locais
+        console.log('🔧 [CONFIG] Ambiente: Desenvolvimento local (porta 8000) → Backend HOMOLOGAÇÃO');
+        console.log('🔧 [CONFIG] Backend: http://localhost:4001/api (Homologação)');
+        return 'http://localhost:4001/api';
       }
       // Rodando no IIS com proxy reverso
+      console.log('🔧 [CONFIG] Ambiente: IIS local com proxy reverso');
       return '/api';
     }
     
-    // Produção - usa o mesmo hostname do frontend com proxy reverso
+    // Detecção automática baseada no domínio
+    if (hostname.includes('recebhomolog.mercocamptech.com.br') || fullUrl.includes('recebhomolog')) {
+      // Ambiente de homologação - backend na porta 4001
+      console.log('🔧 [CONFIG] Ambiente: HOMOLOGAÇÃO - Backend porta 4001');
+      return '/api'; // Proxy reverso configurado para redirecionar para porta 4001
+    }
+    
+    if (hostname.includes('recebimento.mercocamptech.com.br') || fullUrl.includes('recebimento')) {
+      // Ambiente de produção - backend na porta 4000
+      console.log('🔧 [CONFIG] Ambiente: PRODUÇÃO - Backend porta 4000');
+      return '/api'; // Proxy reverso configurado para redirecionar para porta 4000
+    }
+    
+    // Fallback para produção
+    console.log('🔧 [CONFIG] Ambiente: FALLBACK (produção)');
     return '/api';
   },
   
@@ -93,3 +117,4 @@ window.apiRequest = function(endpoint, options = {}) {
       throw error;
     });
 };
+

@@ -93,12 +93,33 @@ class AuthGuard {
    * Remove dados de sessão e redireciona para login
    */
   handleInvalidToken() {
-    // Remove tokens inválidos do localStorage
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
+    console.warn('🔐 [AUTH-GUARD] Token inválido detectado - limpando dados de autenticação');
+    
+    // Limpar completamente os dados de autenticação
+    this.clearAuthData();
 
     // Redireciona para página de login
     this.redirectToLogin()
+  }
+
+  /**
+   * Limpa completamente os dados de autenticação
+   * Remove todos os dados relacionados ao usuário
+   */
+  clearAuthData() {
+    console.log('🧹 [AUTH-GUARD] Limpando dados de autenticação...');
+    
+    // Remover dados do localStorage
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    localStorage.removeItem('userPermissions');
+    localStorage.removeItem('userLevel');
+    localStorage.removeItem('rememberedUser');
+    
+    // Limpar dados de sessão se existirem
+    sessionStorage.clear();
+    
+    console.log('✅ [AUTH-GUARD] Dados de autenticação limpos');
   }
 
   /**
@@ -356,11 +377,11 @@ class AuthGuard {
       // ========================================
       // LIMPEZA DOS DADOS DE SESSÃO
       // ========================================
-      localStorage.removeItem('token')
-      localStorage.removeItem('user')
-      localStorage.removeItem('rememberedUser')
+      console.log('👋 [AUTH-GUARD] Fazendo logout - limpando dados...');
+      this.clearAuthData();
 
       // Redireciona para login
+      console.log('🔄 [AUTH-GUARD] Redirecionando para login...');
       const loginUrl = '/login.html'; window.location.href = loginUrl
     }
   }
@@ -461,8 +482,17 @@ class AuthenticatedApiClient {
 
     // Trata erro 401 (não autorizado)
     if (response.status === 401) {
-      localStorage.removeItem('token')
-      localStorage.removeItem('user')
+      console.warn('🔐 [AUTH-CLIENT] Token inválido detectado - limpando autenticação');
+      
+      // Limpar completamente os dados de autenticação
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      localStorage.removeItem('userPermissions');
+      localStorage.removeItem('userLevel');
+      localStorage.removeItem('rememberedUser');
+      sessionStorage.clear();
+      
+      console.log('🔄 [AUTH-CLIENT] Redirecionando para login...');
       const loginUrl = '/login.html'; window.location.href = loginUrl
       return
     }

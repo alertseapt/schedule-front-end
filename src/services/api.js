@@ -35,6 +35,29 @@ class ApiService {
     }
   }
 
+  // Limpar completamente a autenticação
+  clearAuth() {
+    console.log('🧹 Limpando dados de autenticação...');
+    
+    // Limpar token
+    this.setAuthToken(null);
+    
+    // Limpar outros dados relacionados ao usuário (se existirem)
+    localStorage.removeItem('user');
+    localStorage.removeItem('userPermissions');
+    localStorage.removeItem('userLevel');
+    
+    // Limpar dados de sessão se existirem
+    sessionStorage.clear();
+    
+    console.log('✅ Dados de autenticação limpos');
+  }
+
+  // Verificar se o usuário está autenticado
+  isAuthenticated() {
+    return !!this.token && !!localStorage.getItem('token');
+  }
+
   // Método genérico para fazer requisições
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
@@ -77,8 +100,25 @@ class ApiService {
           // Ignorar erro ao parsear JSON
         }
 
-        // Tratar erro 401
+        // Tratar erro 401 (Não autorizado)
         if (response.status === 401) {
+          console.warn('🔐 Token inválido ou expirado detectado');
+          
+          // Limpar completamente os dados de autenticação
+          this.clearAuth();
+          
+          // Redirecionar para login apenas se não estivermos já na página de login
+          if (!window.location.pathname.includes('/login.html') && !window.location.pathname.includes('/login')) {
+            console.log('🔄 Redirecionando para página de login...');
+            
+            // Adicionar delay mínimo para garantir que os dados foram limpos
+            setTimeout(() => {
+              window.location.href = '/login.html';
+            }, 100);
+            
+            return; // Evitar que o erro seja propagado após redirecionamento
+          }
+          
           throw new Error('Token inválido ou expirado');
         }
 
@@ -148,10 +188,19 @@ class ApiService {
   }
 
   async logout() {
+    console.log('👋 Fazendo logout...');
+    
     try {
+      // Tentar notificar o backend sobre o logout
       await this.post('/auth/logout');
+    } catch (error) {
+      console.warn('⚠️ Erro ao notificar backend sobre logout:', error.message);
+      // Continuar com logout local mesmo se o backend falhar
     } finally {
-      this.setAuthToken(null);
+      // Sempre limpar dados locais
+      this.clearAuth();
+      
+      console.log('🔄 Redirecionando para login...');
       window.location.href = '/login.html';
     }
   }
@@ -250,4 +299,5 @@ export { ApiService };
 if (typeof window !== 'undefined') {
   window.apiService = apiService;
 }
+
 

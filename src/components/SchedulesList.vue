@@ -1,10 +1,13 @@
 <template>
   <div class="schedules-list">
-    <!-- Filtros -->
-    <ScheduleFilters 
-      :filters="currentFilters" 
+    <!-- Busca por NFe/Chave e Filtros -->
+    <NfeSearchBar
+      :filters="currentFilters"
       :status-options="statusOptions"
       :available-clients="availableClients"
+      @search-results="handleSearchResults"
+      @search-error="handleSearchError"
+      @search-start="handleSearchStart"
       @filters-changed="handleFiltersChanged"
       @reset-filters="handleResetFilters"
     />
@@ -121,7 +124,7 @@
 <script>
 import NfeInfoModal from './NfeInfoModal.vue'
 import ScheduleEditModal from './ScheduleEditModal.vue'
-import ScheduleFilters from './ScheduleFilters.vue'
+import NfeSearchBar from './NfeSearchBar.vue'
 import ScheduleBookingModal from './ScheduleBookingModal.vue'
 
 export default {
@@ -130,7 +133,7 @@ export default {
   components: {
     NfeInfoModal,
     ScheduleEditModal,
-    ScheduleFilters,
+    NfeSearchBar,
     ScheduleBookingModal,
   },
 
@@ -1075,6 +1078,22 @@ export default {
         })
       }
     },
+
+    // Métodos para busca por NFe
+    handleSearchResults(data) {
+      // Emitir o evento para o componente pai (App.vue) lidar com os resultados
+      this.$emit('search-results', data)
+    },
+
+    handleSearchError(error) {
+      // Emitir o evento para o componente pai (App.vue) lidar com o erro
+      this.$emit('search-error', error)
+    },
+
+    handleSearchStart() {
+      // Emitir o evento para o componente pai (App.vue) indicar início da busca
+      this.$emit('search-start')
+    }
   },
 
   mounted() {

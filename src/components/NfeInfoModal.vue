@@ -609,7 +609,8 @@ export default {
       if (this.nfeData.client_info) {
         const stockName = this.nfeData.client_info.name
         const stockNumber = this.nfeData.client_info.number
-        const stockCnpj = this.nfeData.client_cnpj || this.nfeData.client
+        // Tentar buscar o CNPJ do client_info primeiro, depois fallback para client_cnpj/client
+        const stockCnpj = this.nfeData.client_info.cnpj || this.nfeData.client_cnpj || this.nfeData.client
 
         let stockInfo = ''
 
@@ -617,12 +618,12 @@ export default {
           stockInfo += stockName
         }
 
-        if (stockNumber && stockNumber !== stockCnpj) {
+        if (stockNumber && stockNumber !== stockCnpj && stockNumber !== stockName) {
           if (stockInfo) stockInfo += ' '
           stockInfo += `(Nº ${stockNumber})`
         }
 
-        if (stockCnpj) {
+        if (stockCnpj && stockCnpj !== stockName) {
           if (stockInfo) stockInfo += ' - '
           stockInfo += `CNPJ: ${stockCnpj}`
         }

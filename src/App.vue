@@ -23,12 +23,51 @@
 
       <!-- Main Content -->
       <main class="main-content">
+        <!-- Top Bar -->
+        <div class="top-bar">
+          <!-- NFe Search (centered) -->
+          <div class="search-container-top">
+            <div class="search-input-group-top">
+              <i class="fas fa-search search-icon-top"></i>
+              <input
+                type="text"
+                v-model="topSearchInput"
+                @keyup.enter="handleTopSearch"
+                :disabled="loading"
+                placeholder="Digite o número da NF-e ou chave de acesso (44 dígitos)"
+                class="search-input-top"
+              />
+              <button
+                @click="handleTopSearch"
+                :disabled="loading || !topSearchInput.trim()"
+                class="search-button-top"
+              >
+                <i v-if="loading" class="fas fa-spinner fa-spin"></i>
+                <i v-else class="fas fa-search"></i>
+              </button>
+            </div>
+          </div>
+          
+          <!-- User Profile (right) -->
+          <div class="user-profile" @click="toggleUserDropdown" ref="userProfile">
+            <div class="user-avatar">
+              {{ getUserInitial() }}
+            </div>
+            <span class="user-name">{{ user?.name || 'Usuário' }}</span>
+            <i class="fas fa-chevron-down dropdown-arrow" :class="{ 'rotate': showUserDropdown }"></i>
+            
+            <!-- Dropdown Menu -->
+            <div v-if="showUserDropdown" class="user-dropdown">
+              <div class="dropdown-item" @click="handleLogout">
+                <i class="fas fa-sign-out-alt"></i>
+                Sair
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Dashboard Content -->
         <div v-if="!showSchedulesList && !showSettingsPage && !showXmlUploadPage" class="content-area">
-          <!-- Stats Cards -->
-          <StatsCards :stats="dashboardStats" :loading="statsLoading">
-          </StatsCards>
-
           <!-- Tabela de Agendamentos (transferida de SchedulesList.vue) -->
           <div class="schedules-list">
             <!-- Header -->
@@ -68,13 +107,118 @@
             </div>
 
             <!-- Filtros -->
-            <ScheduleFilters 
-              :filters="currentFilters" 
-              :status-options="statusOptions"
-              :available-clients="availableClients"
-              @filters-changed="handleFiltersChanged"
-              @reset-filters="handleResetFilters"
-            />
+            <div class="filters-container">
+              <div class="filter-row">
+                <div class="filters-header">
+                  <i class="fas fa-filter"></i>
+                  <span>Filtros</span>
+                </div>
+                <div class="filter-group">
+                  <label for="status">Status:</label>
+                  <select
+                    id="status"
+                    v-model="currentFilters.status"
+                    @change="handleFilterChange"
+                    class="form-control"
+                  >
+                    <option value="">Todos</option>
+                    <option
+                      v-for="option in statusOptions"
+                      :key="option.value"
+                      :value="option.value"
+                    >
+                      {{ option.label }}
+                    </option>
+                  </select>
+                </div>
+
+                <div class="filter-group">
+                  <label for="client">Cliente/Estoque:</label>
+                  <select
+                    id="client"
+                    v-model="currentFilters.client"
+                    @change="handleFilterChange"
+                    class="form-control"
+                  >
+                    <option value="">Todos</option>
+                    <option
+                      v-for="client in filteredAvailableClients"
+                      :key="client.cnpj"
+                      :value="client.cnpj"
+                    >
+                      {{ client.name }}
+                    </option>
+                  </select>
+                </div>
+
+                <div class="filter-group">
+                  <label for="date-from">Data de:</label>
+                  <input
+                    id="date-from"
+                    type="date"
+                    v-model="currentFilters.date_from"
+                    @change="handleFilterChange"
+                    class="form-control"
+                  />
+                </div>
+
+                <div class="filter-group">
+                  <label for="date-to">Data até:</label>
+                  <input
+                    id="date-to"
+                    type="date"
+                    v-model="currentFilters.date_to"
+                    @change="handleFilterChange"
+                    class="form-control"
+                  />
+                </div>
+
+                <div class="filter-group filter-actions-buttons">
+                  <button
+                    v-if="hasActiveFilters"
+                    class="btn btn-sm btn-outline-danger"
+                    @click="resetFilters"
+                    title="Limpar filtros"
+                  >
+                    <i class="fas fa-times"></i>
+                    Limpar
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Indicador de Busca Ativa -->
+            <div v-if="isSearchActive" class="search-indicator mb-3">
+              <div class="search-active-card">
+                <div class="search-content">
+                  <div class="search-header">
+                    <div class="search-icon">
+                      <i class="fas fa-search"></i>
+                    </div>
+                    <div class="search-details">
+                      <div class="search-type">
+                        {{ currentSearchInfo.type === 'nfe_key' ? 'Chave de Acesso' : 'Número da NF-e' }}
+                      </div>
+                      <div class="search-value">
+                        {{ currentSearchInfo.value }}
+                      </div>
+                    </div>
+                  </div>
+                  <div class="search-results">
+                    <div class="results-count">
+                      <span class="count-number">{{ currentSearchInfo.count }}</span>
+                      <span class="count-label">{{ currentSearchInfo.count === 1 ? 'resultado' : 'resultados' }}</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="search-actions">
+                  <button class="clear-search-btn" @click="clearSearch" title="Limpar busca">
+                    <i class="fas fa-times"></i>
+                    <span>Limpar</span>
+                  </button>
+                </div>
+              </div>
+            </div>
 
             <!-- Bulk Actions Bar -->
             <div v-if="canBulkManage" class="bulk-actions-bar">
@@ -152,12 +296,14 @@
                 </div>
                 
                 <!-- Generate TXT Button (Corpem integration) -->
-                <div v-if="canGenerateTXT" class="txt-actions">
-                  <button class="btn btn-info action-btn" @click="generateCorpemTXT" :disabled="bulkActionLoading">
-                    <i class="fas fa-download"></i>
-                    Baixar TXT
-                  </button>
-                </div>
+                <CorpemTxtGenerator
+                  :selected-schedules="selectedSchedules"
+                  :schedules="schedules"
+                  :user="user"
+                  :loading="bulkActionLoading"
+                  @loading-changed="handleTxtLoadingChange"
+                  @notification="addNotification"
+                />
                 
                 <!-- Universal Cancel Button (all users can cancel) -->
                 <div v-if="selectedSchedules.length > 0 && !['Cancelar', 'Cancelado', 'Recusado', 'Em estoque', 'Estoque'].includes(selectedScheduleStatuses[0])" class="universal-actions">
@@ -181,7 +327,7 @@
                 <h3>Nenhum agendamento encontrado</h3>
                 <p>Não há agendamentos que correspondam aos filtros aplicados.</p>
               </div>
-              <div v-else class="table-wrapper" @scroll="handleScroll" ref="tableWrapper">
+              <div v-else class="table-wrapper" ref="tableWrapper">
                 <table class="schedules-table">
                   <thead>
                     <tr>
@@ -248,12 +394,18 @@
             <ScheduleCreationModal v-if="showScheduleCreationModal" :show-modal="showScheduleCreationModal" @close="closeScheduleCreationModal" @created="handleScheduleCreated" />
             <ScheduleBookingModal v-if="showBookingModal" :show-modal="showBookingModal" @close="closeBookingModal" @created="handleBookingCreated" />
             <ScheduleCreationModal v-if="showEffectivateModal" :show-modal="showEffectivateModal" :booking-to-effectivate="bookingToEffectivate" @close="closeEffectivateModal" @created="handleBookingEffectivated" />
+            
           </div>
         </div>
 
         <!-- Schedules List -->
         <div v-if="showSchedulesList" class="content-area">
-          <SchedulesList @notification="addNotification"> </SchedulesList>
+          <SchedulesList 
+            @notification="addNotification"
+            @search-results="handleSearchResults"
+            @search-error="handleSearchError"
+            @search-start="handleSearchStart"
+          > </SchedulesList>
         </div>
 
         <!-- Settings Page -->
@@ -279,20 +431,20 @@
 
 <script>
 import SidebarComponent from './components/SidebarComponent.vue'
-import StatsCards from './components/StatsCards.vue'
 import RecentActivities from './components/RecentActivities.vue'
 import PendingDeliveries from './components/PendingDeliveries.vue'
 import NotificationsComponent from './components/NotificationsComponent.vue'
 import SchedulesList from './components/SchedulesList.vue'
-import ScheduleFilters from './components/ScheduleFilters.vue'
 import NfeInfoModal from './components/NfeInfoModal.vue'
 import ScheduleEditModal from './components/ScheduleEditModal.vue'
 import ScheduleCreationModal from './components/ScheduleCreationModal.vue'
 import ScheduleBookingModal from './components/ScheduleBookingModal.vue'
+import CorpemTxtGenerator from './components/CorpemTxtGenerator.vue'
 import SettingsPage from './views/SettingsPage.vue'
 import XmlUploadPage from './views/XmlUploadPage.vue'
 import { checkPermission, checkUserLevel } from './utils/permissions.js'
 import { BASE_URL } from './config/api.js'
+import apiService from './services/api.js'
 import axios from 'axios'
 
 // Função que inicializa o sistema de permissões
@@ -331,16 +483,31 @@ const apiClient = window.apiClient || new (class VueApiClientFallback {
       return response.data
     } catch (error) {
       if (error.response?.status === 401) {
-        // Não fazer logout automático para erros de alteração de senha
-        // Esses erros devem ser tratados pelo próprio componente
-        if (endpoint === '/users/profile/me') {
-          throw error
+        console.warn('🔐 [APICLIENT] Token inválido ou expirado detectado - Status 401');
+        
+        // Limpar completamente os dados de autenticação
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        localStorage.removeItem('userPermissions');
+        localStorage.removeItem('userLevel');
+        localStorage.removeItem('rememberedUser');
+        sessionStorage.clear();
+        
+        console.log('🧹 [APICLIENT] Dados de autenticação limpos');
+        
+        // Redirecionar para login apenas se não estivermos já na página de login
+        if (!window.location.pathname.includes('/login.html') && !window.location.pathname.includes('/login')) {
+          console.log('🔄 [APICLIENT] Redirecionando para página de login...');
+          
+          // Adicionar delay mínimo para garantir que os dados foram limpos
+          setTimeout(() => {
+            window.location.href = '/login.html';
+          }, 100);
+          
+          return; // Evitar que o erro seja propagado após redirecionamento
         }
         
-        console.log('Token expirado - erro 401 detectado')
-        // NÃO remover token nem redirecionar automaticamente
-        // Apenas logar o erro e deixar o usuário continuar
-        return
+        throw new Error('Token inválido ou expirado - Redirecionando para login');
       }
       throw error
     }
@@ -528,16 +695,15 @@ export default {
   name: 'App',
   components: {
     SidebarComponent,
-    StatsCards,
     RecentActivities,
     PendingDeliveries,
     NotificationsComponent,
     SchedulesList,
-    ScheduleFilters,
     NfeInfoModal,
     ScheduleEditModal,
     ScheduleCreationModal,
     ScheduleBookingModal,
+    CorpemTxtGenerator,
     SettingsPage,
     XmlUploadPage,
   },
@@ -572,6 +738,19 @@ export default {
       selectedSchedules: [],
       newDate: '',
       bulkActionLoading: false,
+      
+      // Top bar properties
+      topSearchInput: '',
+      showUserDropdown: false,
+      
+      // Filtros
+      currentFilters: {
+        status: '',
+        client: '',
+        date_from: '',
+        date_to: ''
+      },
+      availableClients: [],
       showInfoModal: false,
       showEditModal: false,
       showScheduleCreationModal: false,
@@ -599,16 +778,25 @@ export default {
         client: '',
         date_from: '',
         date_to: '',
-        nfe_number: '',
       },
-      availableClients: []
+      availableClients: [],
+      
+      // Controle de busca
+      isSearchActive: false,
+      currentSearchInfo: null,
+      originalSchedules: []
     }
   },
   computed: {
     displayedSchedules() {
       if (!Array.isArray(this.schedules)) return []
       
-      // Filtrar status que não devem aparecer na página inicial
+      // Se estivermos em modo de busca ativa, mostrar todos os resultados
+      if (this.isSearchActive) {
+        return this.schedules
+      }
+      
+      // Filtrar status que não devem aparecer na página inicial (apenas quando não há busca ativa)
       const hiddenStatuses = ['Em estoque', 'Estoque', 'Recusado', 'Cancelado']
       return this.schedules.filter(schedule => 
         !hiddenStatuses.includes(schedule.status)
@@ -640,31 +828,6 @@ export default {
       return (this.selectedSchedules || []).length > 0 && this.selectedScheduleStatuses.length === 1
     },
     
-    canGenerateTXT() {
-      if (this.selectedSchedules.length < 1) return false
-      
-      const selected = (this.schedules || []).filter(s => this.selectedSchedules.includes(s.id))
-      if (selected.length === 0) return false
-      
-      // Verificar nível de acesso do usuário (apenas usuários com level_access diferente de 1)
-      const currentUser = this.getCurrentUser()
-      if (!currentUser || currentUser.level_access === 1) return false
-      
-      // Verificar se todos os agendamentos têm status permitidos
-      const allowedStatuses = ['Agendado', 'Conferência', 'Cancelado', 'Tratativa']
-      if (!selected.every(schedule => allowedStatuses.includes(schedule.status))) {
-        return false
-      }
-      
-      // Verificar se todos são do mesmo cliente e têm dados NFe completos
-      const firstClient = selected[0].client
-      return selected.every(schedule => 
-        schedule.client === firstClient && 
-        schedule.info && 
-        schedule.nfe_key &&
-        schedule.number
-      )
-    },
     userLevel() {
       try {
         const userData = localStorage.getItem('user')
@@ -693,6 +856,16 @@ export default {
         { value: 'Recusado', label: 'Recusado' },
         { value: 'Marcação', label: 'Marcação' },
       ]
+    },
+
+    filteredAvailableClients() {
+      return this.availableClients || []
+    },
+
+    hasActiveFilters() {
+      return Object.values(this.currentFilters).some(
+        value => value && value.toString().trim() !== ''
+      )
     },
     
     hasCreatePermission() {
@@ -736,6 +909,12 @@ export default {
   async mounted() {
     // App.vue inicializado
     
+    // Adicionar event listener para scroll da página (infinite scroll)
+    window.addEventListener('scroll', this.handleScroll)
+    
+    // Event listener para fechar dropdown do usuário ao clicar fora
+    document.addEventListener('click', this.handleClickOutside)
+    
     try {
       // Carregamento simples - sem verificações complexas
       this.setLoading(true, 'Carregando Sistema...', 'Aguarde um momento')
@@ -757,6 +936,12 @@ export default {
       this.addNotification('Erro ao inicializar sistema', 'error')
     }
   },
+  beforeUnmount() {
+    // Remover event listener para scroll da página
+    window.removeEventListener('scroll', this.handleScroll)
+    // Remover event listener para clique fora do dropdown
+    document.removeEventListener('click', this.handleClickOutside)
+  },
   methods: {
     // Métodos de Loading Unificado
     setLoading(isLoading, message = 'Carregando...', subtext = 'Por favor, aguarde um momento') {
@@ -766,9 +951,103 @@ export default {
     },
 
     setBulkActionLoading(isLoading, message = 'Processando...', subtext = 'Aguarde enquanto processamos sua solicitação') {
+      console.log('App.vue - setBulkActionLoading called:', { isLoading, message, subtext })
+      console.log('App.vue - Stack trace:', new Error().stack)
       this.bulkActionLoading = isLoading
       this.loadingMessage = message
       this.loadingSubtext = subtext
+    },
+
+    // Método para lidar com loading do componente TXT
+    handleTxtLoadingChange(loadingData) {
+      console.log('App.vue - handleTxtLoadingChange called:', loadingData)
+      this.setBulkActionLoading(loadingData.loading, loadingData.message, loadingData.detail)
+    },
+
+    // Top Bar Methods
+    async handleTopSearch() {
+      const input = this.topSearchInput.trim()
+      
+      if (!input) {
+        return
+      }
+      
+      this.setLoading(true, 'Buscando...', 'Procurando agendamento')
+      
+      try {
+        console.log('🔍 Iniciando busca por NFe/chave:', input)
+        
+        const response = await apiService.post('/schedule-verification/search', {
+          input: input
+        })
+        
+        console.log('✅ Resultados da busca:', response)
+        
+        if (response && response.success) {
+          this.handleSearchResults({
+            results: response.results,
+            searchType: response.searchType,
+            searchValue: response.searchValue
+          })
+          
+          // Limpar campo após busca bem-sucedida
+          this.topSearchInput = ''
+          this.addNotification(`Encontrados ${response.results.length} agendamento(s)`, 'success')
+        } else {
+          const errorMsg = response?.message || 'Erro na busca'
+          this.addNotification(errorMsg, 'error')
+        }
+        
+      } catch (error) {
+        console.error('❌ Erro na busca por NFe/chave:', error)
+        
+        let errorMessage = 'Erro ao buscar agendamento'
+        if (error.response?.error) {
+          errorMessage = error.response.error
+        } else if (error.message) {
+          errorMessage = error.message
+        }
+        
+        this.addNotification(errorMessage, 'error')
+      } finally {
+        this.setLoading(false)
+      }
+    },
+
+    toggleUserDropdown() {
+      this.showUserDropdown = !this.showUserDropdown
+    },
+
+    handleClickOutside(event) {
+      if (this.showUserDropdown && this.$refs.userProfile && !this.$refs.userProfile.contains(event.target)) {
+        this.showUserDropdown = false
+      }
+    },
+
+    getUserInitial() {
+      if (!this.user?.name) {
+        return 'U'
+      }
+      return this.user.name.charAt(0).toUpperCase()
+    },
+
+    // Filter methods
+    handleFilterChange() {
+      console.log('Filtros alterados:', this.currentFilters)
+      // Recarregar agendamentos com novos filtros
+      this.loadSchedules()
+    },
+
+    resetFilters() {
+      this.currentFilters = {
+        status: '',
+        client: '',
+        date_from: '',
+        date_to: ''
+      }
+      console.log('Filtros resetados')
+      // Recarregar agendamentos sem filtros
+      this.loadSchedules()
     },
     // FUNÇÃO SIMPLES - APENAS CARREGA DO LOCALSTORAGE
     loadUserFromStorage() {
@@ -1522,8 +1801,11 @@ export default {
       }
     },
 
-    handleScroll(event) {
-      const { scrollTop, scrollHeight, clientHeight } = event.target
+    handleScroll() {
+      // Usar o scroll da página em vez do scroll do container
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop
+      const scrollHeight = document.documentElement.scrollHeight
+      const clientHeight = window.innerHeight
       const threshold = 100 // pixels do fim para começar a carregar
       
       if (scrollTop + clientHeight >= scrollHeight - threshold) {
@@ -1926,132 +2208,6 @@ export default {
       }
     },
 
-    async generateCorpemTXT() {
-      if (!this.canGenerateTXT) {
-        this.addNotification('Selecione NFes do mesmo cliente para gerar o arquivo TXT. Funcionalidade disponível apenas para usuários com nível de acesso diferente de 1.', 'error')
-        return
-      }
-
-      this.setBulkActionLoading(true, 'Gerando TXT...', 'Preparando arquivo para download')
-
-      try {
-        const selectedSchedules = (this.schedules || []).filter(s => this.selectedSchedules.includes(s.id))
-        console.log('Gerando TXT para agendamentos:', selectedSchedules)
-
-        // Gerar conteúdo do arquivo TXT
-        const txtContent = this.generateTXTContent(selectedSchedules)
-        
-        // Fazer download do arquivo
-        const clientName = selectedSchedules[0].client.replace(/[^a-zA-Z0-9]/g, '_')
-        const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-        const filename = `corpem_${clientName}_${timestamp}.txt`
-        
-        this.downloadTXT(txtContent, filename)
-
-        this.addNotification(`Arquivo TXT gerado com sucesso: ${filename} (${selectedSchedules.length} ${selectedSchedules.length === 1 ? 'NFe' : 'NFes'})`, 'success')
-
-      } catch (error) {
-        console.error('Erro ao gerar arquivo TXT:', error)
-        this.addNotification('Erro ao gerar arquivo TXT: ' + (error.message || 'Erro desconhecido'), 'error')
-      } finally {
-        this.setBulkActionLoading(false)
-      }
-    },
-
-    generateTXTContent(schedules) {
-      let txtContent = ''
-      
-      schedules.forEach(schedule => {
-        try {
-          // Extrair dados da NFe
-          const info = typeof schedule.info === 'string' ? JSON.parse(schedule.info) : schedule.info
-          
-          // Campos do arquivo TXT (baseado no danfe_to_txt.html)
-          const pedidoCompra = this.padField(schedule.id || '', 30) // Usando ID do agendamento como pedido
-          const nfFornecedor = this.padField(schedule.number || '', 10)
-          const serieNF = this.padField('001', 3) // Série padrão
-          const dataEmissao = this.padField(this.formatDateForTXT(schedule.date), 8)
-          const valorNota = this.padField(this.extractTotalValue(info) || '0', 10)
-          
-          // Para cada produto da NFe, criar uma linha
-          const products = info.products || []
-          if (products.length > 0) {
-            products.forEach(product => {
-              const codigoMercadoria = this.padField(product.supplier_code || product.code || '', 20)
-              const quantidade = this.padField(product.quantity || '0', 10)
-              const valorUnitario = this.padField(product.unit_value || '0', 10)
-              
-              const line = pedidoCompra + nfFornecedor + serieNF + dataEmissao + 
-                          valorNota + codigoMercadoria + quantidade + valorUnitario
-              txtContent += line + '\n'
-            })
-          } else {
-            // Se não tem produtos, criar linha básica
-            const codigoMercadoria = this.padField('PRODUTO001', 20)
-            const quantidade = this.padField('1', 10)
-            const valorUnitario = this.padField(this.extractTotalValue(info) || '0', 10)
-            
-            const line = pedidoCompra + nfFornecedor + serieNF + dataEmissao + 
-                        valorNota + codigoMercadoria + quantidade + valorUnitario
-            txtContent += line + '\n'
-          }
-          
-        } catch (error) {
-          console.error('Erro ao processar agendamento:', schedule.id, error)
-        }
-      })
-      
-      return txtContent
-    },
-
-    padField(value, length) {
-      const str = String(value || '').replace(/[^\x20-\x7E]/g, '') // Remove caracteres especiais
-      if (str.length >= length) {
-        return str.substring(0, length)
-      }
-      return str + ' '.repeat(length - str.length)
-    },
-
-    formatDateForTXT(date) {
-      if (!date) return ''
-      try {
-        const d = new Date(date)
-        const day = String(d.getDate()).padStart(2, '0')
-        const month = String(d.getMonth() + 1).padStart(2, '0')
-        const year = String(d.getFullYear())
-        return day + month + year // DDMMAAAA
-      } catch {
-        return ''
-      }
-    },
-
-    extractTotalValue(info) {
-      try {
-        if (info.total && info.total.ICMSTot) {
-          return info.total.ICMSTot.vProd || info.total.ICMSTot.vNF || '0'
-        }
-        if (info.products && Array.isArray(info.products)) {
-          return info.products.reduce((sum, product) => {
-            return sum + parseFloat(product.total_value || 0)
-          }, 0).toString()
-        }
-        return '0'
-      } catch {
-        return '0'
-      }
-    },
-
-    downloadTXT(content, filename) {
-      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
-      const link = document.createElement('a')
-      link.href = URL.createObjectURL(blob)
-      link.download = filename
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(link.href)
-    },
-
     getCurrentUser() {
       try {
         const userData = localStorage.getItem('user')
@@ -2090,7 +2246,6 @@ export default {
         client: '',
         date_from: '',
         date_to: '',
-        nfe_number: '',
       }
       this.pagination.page = 1
       this.pagination.hasMore = true
@@ -2121,9 +2276,8 @@ export default {
         
         // Se o usuário tem level_access = 0, tem acesso total
         if (user.level_access === 0) {
-          // Para desenvolvedores, podemos buscar todos os clientes via API
-          // Por enquanto, vamos deixar vazio e carregar dinamicamente dos agendamentos
-          this.availableClients = []
+          // Para usuários com acesso total, carregar todos os clientes disponíveis
+          this.loadAllClientsForFilter()
           return
         }
         
@@ -2149,6 +2303,55 @@ export default {
       }
     },
 
+    async loadAllClientsForFilter() {
+      try {
+        console.log('🏢 Carregando todos os clientes para filtro (usuário com acesso total)...')
+        
+        // Usar cache global se disponível e recente (menos de 5 minutos)
+        if (window.globalClientsCache && window.globalClientsCache.clients) {
+          const cacheAge = Date.now() - window.globalClientsCache.loadedAt
+          if (cacheAge < 5 * 60 * 1000) { // 5 minutos
+            console.log('📋 Usando cache de clientes para filtro')
+            this.availableClients = window.globalClientsCache.clients.map(client => ({
+              cnpj: client.cnpj,
+              name: client.name || `Cliente ${client.cnpj}`,
+              number: client.number || client.cnpj
+            }))
+            return
+          }
+        }
+
+        // Se não tem cache, carregar da API
+        const response = await apiClient.request('/clients', {
+          method: 'GET'
+        })
+        
+        if (response && response.data) {
+          const allClients = response.data || []
+          
+          this.availableClients = allClients.map(client => ({
+            cnpj: client.cnpj,
+            name: client.name || `Cliente ${client.cnpj}`,
+            number: client.number || client.cnpj
+          }))
+          
+          // Atualizar cache global
+          window.globalClientsCache = {
+            clients: this.availableClients,
+            loadedAt: Date.now()
+          }
+          
+          console.log(`✅ ${this.availableClients.length} clientes carregados para filtro`)
+        } else {
+          console.warn('⚠️ Resposta da API de clientes não contém dados')
+          this.availableClients = []
+        }
+        
+      } catch (error) {
+        console.error('❌ Erro ao carregar todos os clientes para filtro:', error)
+        this.availableClients = []
+      }
+    },
 
     handleReprocessSuccess(scheduleData) {
       console.log('✅ Reprocessamento bem-sucedido para agendamento:', scheduleData.id);
@@ -2352,6 +2555,68 @@ export default {
       const userData = localStorage.getItem('user')
       return userData ? JSON.parse(userData) : null
     },
+    
+    // Métodos para busca por NFe/Chave
+    handleSearchResults(searchData) {
+      console.log('🔍 Resultados recebidos:', searchData)
+      
+      const results = searchData.results || []
+      
+      // Salvar agendamentos originais se ainda não estão salvos
+      if (!this.isSearchActive) {
+        this.originalSchedules = [...this.schedules]
+      }
+      
+      if (results.length > 0) {
+        // Substituir a lista de agendamentos pelos resultados da busca
+        this.schedules = results
+        this.isSearchActive = true
+        this.currentSearchInfo = {
+          type: searchData.searchType,
+          value: searchData.searchValue,
+          count: results.length
+        }
+        
+        this.addNotification(
+          `${results.length} agendamento(s) encontrado(s) - Lista filtrada`,
+          'success'
+        )
+      } else {
+        // Se não há resultados, limpar a lista
+        this.schedules = []
+        this.isSearchActive = true
+        this.currentSearchInfo = {
+          type: searchData.searchType,
+          value: searchData.searchValue,
+          count: 0
+        }
+        
+        this.addNotification(
+          'Nenhum agendamento encontrado',
+          'info'
+        )
+      }
+    },
+    
+    handleSearchError(errorMessage) {
+      this.addNotification(errorMessage, 'error')
+    },
+    
+    handleSearchStart() {
+      console.log('🔍 Iniciando busca por NFe/chave...')
+    },
+    
+    clearSearch() {
+      if (this.isSearchActive) {
+        // Restaurar agendamentos originais
+        this.schedules = [...this.originalSchedules]
+        this.isSearchActive = false
+        this.currentSearchInfo = null
+        this.originalSchedules = []
+        
+        this.addNotification('Busca limpa - Lista restaurada', 'info')
+      }
+    },
   },
 }
 
@@ -2360,10 +2625,8 @@ window.apiClient = apiClient
 </script>
 
 <style scoped>
-/* Table wrapper for infinite scroll */
+/* Table wrapper - using page scroll instead of container scroll */
 .table-wrapper {
-  max-height: 600px;
-  overflow-y: auto;
   border: 1px solid #dee2e6;
   border-radius: 0.375rem;
 }
@@ -2817,5 +3080,506 @@ window.apiClient = apiClient
 
 .booking-row:hover {
   background-color: rgba(254, 226, 226, 0.7) !important;
+}
+
+/* Estilos para o indicador de busca ativa */
+.search-indicator {
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.search-active-card {
+  background: linear-gradient(135deg, #e3f2fd 0%, #f8f9fa 100%);
+  border: 2px solid #2196f3;
+  border-radius: 12px;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 2px 8px rgba(33, 150, 243, 0.15);
+  transition: all 0.2s ease;
+}
+
+.search-active-card:hover {
+  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.2);
+  transform: translateY(-1px);
+}
+
+.search-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+}
+
+.search-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.search-icon {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #2196f3, #1976d2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.1rem;
+  box-shadow: 0 2px 6px rgba(33, 150, 243, 0.3);
+}
+
+.search-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.search-type {
+  font-size: 0.85rem;
+  color: #666;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.search-value {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1976d2;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+.search-results {
+  margin-left: auto;
+  margin-right: 1rem;
+}
+
+.results-count {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.count-number {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1976d2;
+  line-height: 1;
+}
+
+.count-label {
+  font-size: 0.75rem;
+  color: #666;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.search-actions {
+  margin-left: auto;
+}
+
+.clear-search-btn {
+  background: linear-gradient(135deg, #f44336, #d32f2f);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  padding: 0.6rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(244, 67, 54, 0.3);
+}
+
+.clear-search-btn:hover {
+  background: linear-gradient(135deg, #d32f2f, #b71c1c);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(244, 67, 54, 0.4);
+}
+
+.clear-search-btn:active {
+  transform: translateY(0);
+}
+
+/* Responsividade para o indicador de busca */
+@media (max-width: 768px) {
+  .search-active-card {
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.25rem;
+  }
+  
+  .search-content {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .search-results {
+    margin: 0;
+  }
+  
+  .search-actions {
+    margin: 0;
+    width: 100%;
+  }
+  
+  .clear-search-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .search-header {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.5rem;
+  }
+  
+  .search-details {
+    align-items: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .search-value {
+    font-size: 0.95rem;
+    word-break: break-all;
+  }
+  
+  .search-icon {
+    width: 35px;
+    height: 35px;
+    font-size: 1rem;
+  }
+}
+
+/* Top Bar Styles */
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 2rem;
+  background: white;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  margin-bottom: 0.75rem;
+  border-radius: 8px;
+  position: relative;
+  border: 1px solid #e9ecef;
+}
+
+/* Search Container (centered) */
+.search-container-top {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.search-input-group-top {
+  display: flex;
+  align-items: center;
+  position: relative;
+  width: 100%;
+  max-width: 500px;
+}
+
+.search-icon-top {
+  position: absolute;
+  left: 15px;
+  color: #6c757d;
+  z-index: 2;
+  font-size: 1rem;
+}
+
+.search-input-top {
+  flex: 1;
+  padding: 12px 15px 12px 45px;
+  border: 2px solid #e9ecef;
+  border-radius: 25px 0 0 25px;
+  font-size: 1rem;
+  background: white;
+  transition: all 0.3s ease;
+  outline: none;
+}
+
+.search-input-top:focus {
+  border-color: #28a745;
+  box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.1);
+}
+
+.search-input-top:disabled {
+  background-color: #f8f9fa;
+  cursor: not-allowed;
+}
+
+.search-button-top {
+  padding: 12px 20px;
+  background: #28a745;
+  color: white;
+  border: 2px solid #28a745;
+  border-left: none;
+  border-radius: 0 25px 25px 0;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.search-button-top:hover:not(:disabled) {
+  background: #218838;
+  border-color: #218838;
+  transform: translateY(-1px);
+}
+
+.search-button-top:disabled {
+  background: #6c757d;
+  border-color: #6c757d;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* User Profile */
+.user-profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.user-profile:hover {
+  transform: translateY(-1px);
+}
+
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #007bff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: white;
+  text-transform: uppercase;
+}
+
+.user-name {
+  color: #495057;
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.dropdown-arrow {
+  color: #6c757d;
+  font-size: 0.8rem;
+  transition: transform 0.3s ease;
+}
+
+.dropdown-arrow.rotate {
+  transform: rotate(180deg);
+}
+
+/* User Dropdown */
+.user-dropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  border: 1px solid #e9ecef;
+  min-width: 150px;
+  z-index: 1000;
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.dropdown-item {
+  padding: 12px 16px;
+  color: #495057;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dropdown-item:hover {
+  background-color: #f8f9fa;
+}
+
+.dropdown-item i {
+  font-size: 0.9rem;
+  color: #dc3545;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .top-bar {
+    flex-direction: column;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+  }
+  
+  .search-container-top {
+    width: 100%;
+  }
+  
+  .search-input-group-top {
+    max-width: none;
+  }
+  
+  .search-input-top,
+  .search-button-top {
+    border-radius: 6px;
+  }
+  
+  .search-input-top {
+    margin-bottom: 0.5rem;
+    border-right: 2px solid #e9ecef;
+  }
+  
+  .search-button-top {
+    width: 100%;
+    justify-content: center;
+    border: 2px solid #28a745;
+  }
+  
+  .user-profile {
+    align-self: flex-end;
+  }
+}
+
+/* Filtros Styles */
+.filters-container {
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 0.75rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.filters-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #495057;
+  font-weight: 500;
+  margin-right: 2rem;
+  white-space: nowrap;
+}
+
+.filters-header i {
+  color: #007bff;
+}
+
+.filter-row {
+  display: flex;
+  gap: 1rem;
+  align-items: end;
+  flex-wrap: wrap;
+  justify-content: center;
+  width: 100%;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  min-width: 120px;
+  flex: 1;
+  max-width: 200px;
+}
+
+.filter-group label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #555;
+  margin-bottom: 0.3rem;
+}
+
+.filter-group .form-control {
+  padding: 0.3rem 0.5rem;
+  font-size: 0.85rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  height: 32px;
+}
+
+.filter-group .form-control:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.filter-actions-buttons {
+  display: flex;
+  gap: 0.5rem;
+  align-items: end;
+  min-width: auto;
+  flex: 0 0 auto;
+}
+
+.filter-actions-buttons .btn {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.8rem;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* Responsivo */
+@media (max-width: 1200px) {
+  .filter-row {
+    flex-wrap: wrap;
+  }
+  
+  .filter-group {
+    min-width: 120px;
+    flex: 1 1 auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .filter-row {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .filter-group {
+    min-width: 100%;
+    flex: 1;
+  }
+  
+  .filter-actions-buttons {
+    flex-direction: row;
+    justify-content: center;
+    min-width: 100%;
+  }
 }
 </style>

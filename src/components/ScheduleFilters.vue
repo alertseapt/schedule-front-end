@@ -1,56 +1,9 @@
 <template>
   <div class="schedule-filters">
-    <!-- Filter Header -->
-    <div class="filter-header">
-      <div class="filter-title">
-        <h4>
-          <i class="fas fa-filter"></i>
-          Filtros
-          <span v-if="filterCount > 0" class="filter-count">
-            ({{ filterCount }})
-          </span>
-        </h4>
-      </div>
-
-      <div class="filter-actions">
-        <button
-          class="btn btn-sm btn-outline-secondary"
-          @click="toggleExpanded"
-          :title="expanded ? 'Recolher filtros' : 'Expandir filtros'"
-        >
-          <i
-            :class="expanded ? 'fas fa-chevron-up' : 'fas fa-chevron-down'"
-          ></i>
-        </button>
-
-        <button
-          v-if="hasActiveFilters"
-          class="btn btn-sm btn-outline-danger"
-          @click="resetFilters"
-          title="Limpar filtros"
-        >
-          <i class="fas fa-times"></i>
-          Limpar
-        </button>
-      </div>
-    </div>
-
     <!-- Filter Content -->
-    <div v-show="expanded" class="filter-content">
+    <div class="filter-content">
       <!-- First Row -->
       <div class="filter-row">
-        <div class="filter-group">
-          <label for="nfe-number">№ NF-e:</label>
-          <input
-            id="nfe-number"
-            type="text"
-            v-model="localFilters.nfe_number"
-            @input="handleInputChange"
-            placeholder="Digite o número da NF-e"
-            class="form-control"
-          />
-        </div>
-
         <div class="filter-group">
           <label for="status">Status:</label>
           <select
@@ -59,6 +12,7 @@
             @change="handleSelectChange"
             class="form-control"
           >
+            <option value="">Todos</option>
             <option
               v-for="option in statusOptions"
               :key="option.value"
@@ -77,7 +31,7 @@
             @change="handleSelectChange"
             class="form-control"
           >
-            <option value="">Todos os clientes</option>
+            <option value="">Todos</option>
             <option
               v-for="client in availableClients"
               :key="client.cnpj"
@@ -87,10 +41,7 @@
             </option>
           </select>
         </div>
-      </div>
 
-      <!-- Second Row -->
-      <div class="filter-row">
         <div class="filter-group">
           <label for="date-from">Data de:</label>
           <input
@@ -122,14 +73,14 @@
             <i class="fas fa-search"></i>
             Filtrar
           </button>
-
           <button
-            class="btn btn-secondary"
-            @click="saveFilters"
-            title="Salvar filtros"
+            v-if="hasActiveFilters"
+            class="btn btn-sm btn-outline-danger"
+            @click="resetFilters"
+            title="Limpar filtros"
           >
-            <i class="fas fa-save"></i>
-            Salvar
+            <i class="fas fa-times"></i>
+            Limpar
           </button>
         </div>
       </div>
@@ -159,7 +110,6 @@ export default {
   data() {
     return {
       localFilters: { ...this.filters },
-      expanded: false,
     }
   },
 
@@ -197,13 +147,8 @@ export default {
         client: '',
         date_from: '',
         date_to: '',
-        nfe_number: '',
       }
       this.$emit('reset-filters')
-    },
-
-    toggleExpanded() {
-      this.expanded = !this.expanded
     },
 
     handleInputChange() {
@@ -223,25 +168,8 @@ export default {
       return date.toISOString().split('T')[0]
     },
 
-    saveFilters() {
-      localStorage.setItem('scheduleFilters', JSON.stringify(this.localFilters))
-    },
-
-    loadSavedFilters() {
-      const saved = localStorage.getItem('scheduleFilters')
-      if (saved) {
-        try {
-          this.localFilters = { ...this.localFilters, ...JSON.parse(saved) }
-        } catch (error) {
-          console.error('Erro ao carregar filtros salvos:', error)
-        }
-      }
-    },
   },
 
-  mounted() {
-    this.loadSavedFilters()
-  },
 
   beforeUnmount() {
     if (this.debounceTimer) {
@@ -250,3 +178,137 @@ export default {
   },
 }
 </script>
+
+<style scoped>
+.schedule-filters {
+  background: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.filter-header {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-bottom: 0;
+}
+
+.filter-title h4 {
+  margin: 0;
+  color: #333;
+  font-size: 1.1rem;
+}
+
+.filter-count {
+  background: #007bff;
+  color: white;
+  padding: 0.2rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  margin-left: 0.5rem;
+}
+
+.filter-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.filter-content {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: end;
+  justify-content: center;
+}
+
+.filter-row {
+  display: flex;
+  gap: 1rem;
+  align-items: end;
+  flex-wrap: wrap;
+  justify-content: center;
+  width: 100%;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  min-width: 120px;
+  flex: 1;
+  max-width: 200px;
+}
+
+.filter-group label {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: #555;
+  margin-bottom: 0.3rem;
+}
+
+.filter-group .form-control {
+  padding: 0.3rem 0.5rem;
+  font-size: 0.85rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  height: 32px;
+}
+
+.filter-group .form-control:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.filter-actions-buttons {
+  display: flex;
+  gap: 0.5rem;
+  align-items: end;
+  min-width: auto;
+  flex: 0 0 auto;
+}
+
+.filter-actions-buttons .btn {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.8rem;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+/* Responsivo */
+@media (max-width: 1200px) {
+  .filter-row {
+    flex-wrap: wrap;
+  }
+  
+  .filter-group {
+    min-width: 120px;
+    flex: 1 1 auto;
+  }
+}
+
+@media (max-width: 768px) {
+  .filter-content {
+    flex-direction: column;
+  }
+  
+  .filter-row {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .filter-group {
+    min-width: 100%;
+    flex: 1;
+  }
+  
+  .filter-actions-buttons {
+    flex-direction: row;
+    justify-content: center;
+    min-width: 100%;
+  }
+}
+</style>
