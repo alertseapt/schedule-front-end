@@ -12,6 +12,39 @@
       @reset-filters="handleResetFilters"
     />
 
+    <!-- Indicador de Busca Ativa -->
+    <div v-if="isSearchActive" class="search-indicator mb-3">
+      <div class="search-active-card">
+        <div class="search-content">
+          <div class="search-header">
+            <div class="search-icon">
+              <i class="fas fa-search"></i>
+            </div>
+            <div class="search-details">
+              <div class="search-type">
+                {{ currentSearchInfo.type === 'nfe_key' ? 'Chave de Acesso' : 'Número da NF-e' }}
+              </div>
+              <div class="search-value">
+                {{ currentSearchInfo.value }}
+              </div>
+            </div>
+          </div>
+          <div class="search-results">
+            <div class="results-count">
+              <span class="count-number">{{ currentSearchInfo.count }}</span>
+              <span class="count-label">{{ currentSearchInfo.count === 1 ? 'resultado' : 'resultados' }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="search-actions">
+          <button class="clear-search-btn" @click="clearSearch" title="Limpar busca">
+            <i class="fas fa-times"></i>
+            <span>Limpar</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Table -->
     <div class="table-container">
       <div v-if="loading" class="loading-container">
@@ -26,7 +59,7 @@
       </div>
 
 
-      <div class="table-wrapper" @scroll="handleScroll" ref="tableWrapper">
+      <div class="table-wrapper" ref="tableWrapper">
         <table class="schedules-table">
         <thead>
           <tr>
@@ -80,12 +113,18 @@
           </tr>
         </tbody>
         </table>
-        
-        <!-- Loading indicator for infinite scroll -->
-        <div v-if="loadingMore" class="loading-more">
-          <i class="fas fa-spinner fa-spin"></i>
-          <p>Carregando mais agendamentos...</p>
-        </div>
+      </div>
+
+      <!-- Loading indicator for infinite scroll - fora da tabela -->
+      <div v-if="loadingMore" class="loading-more">
+        <i class="fas fa-spinner fa-spin"></i>
+        <p>Carregando mais agendamentos...</p>
+      </div>
+
+      <!-- Indicador de fim da lista -->
+      <div v-else-if="schedules.length > 0 && !pagination.hasMore" class="end-of-list">
+        <i class="fas fa-check-circle"></i>
+        <p>Todos os agendamentos foram carregados ({{ schedules.length }} total)</p>
       </div>
 
     </div>
@@ -156,6 +195,7 @@ export default {
         hasMore: true,
       },
       loadingMore: false,
+      scrollTimeout: null, // Para throttling do scroll
       
       // Filtros
       currentFilters: {
@@ -166,6 +206,11 @@ export default {
         nfe_number: '',
       },
       availableClients: [],
+      
+      // Variáveis para controle de pesquisa
+      isSearchActive: false,
+      originalSchedules: [],
+      currentSearchInfo: null,
     }
   },
 
@@ -283,7 +328,12 @@ export default {
         }
         
         this.pagination.total = response.pagination?.total || 0
-        this.pagination.hasMore = newSchedules.length === this.pagination.limit
+        // Se recebeu menos agendamentos que o limite, não há mais dados
+        this.pagination.hasMore = newSchedules.length === this.pagination.limit && newSchedules.length > 0
+        
+        if (!this.pagination.hasMore && this.pagination.page > 1) {
+          console.log(`📄 Fim da lista: carregados ${newSchedules.length} de ${this.pagination.limit} agendamentos na página ${this.pagination.page}`)
+        }
       } catch (error) {
         console.error('Erro ao carregar agendamentos:', error)
         console.error('URL da requisição:', error.config?.url)
@@ -322,6 +372,8 @@ export default {
         }
 
         this.schedules = []
+        // Em caso de erro, parar de tentar carregar mais
+        this.pagination.hasMore = false
       } finally {
         if (this.pagination.page === 1) {
           this.loading = false
@@ -366,28 +418,49 @@ export default {
     },
 
     async loadMoreSchedules() {
-      if (this.loadingMore || !this.pagination.hasMore) return
+      if (this.loadingMore || !this.pagination.hasMore) {
+        console.log('🛑 loadMoreSchedules: bloqueado', { 
+          loadingMore: this.loadingMore, 
+          hasMore: this.pagination.hasMore 
+        })
+        return
+      }
       
+      console.log(`📖 Carregando página ${this.pagination.page + 1}...`)
       this.loadingMore = true
       this.pagination.page += 1
       
       try {
         await this.loadSchedules()
       } catch (error) {
-        // Se der erro, volta a página anterior
+        console.error('❌ Erro ao carregar mais agendamentos:', error)
+        // Se der erro, volta a página anterior e para de tentar
         this.pagination.page -= 1
+        this.pagination.hasMore = false
       } finally {
         this.loadingMore = false
+        console.log(`✅ loadingMore finalizado. hasMore: ${this.pagination.hasMore}`)
       }
     },
 
-    handleScroll(event) {
-      const { scrollTop, scrollHeight, clientHeight } = event.target
-      const threshold = 100 // pixels do fim para começar a carregar
+    handleScroll() {
+      // Throttle para melhorar performance
+      if (this.scrollTimeout) return
       
-      if (scrollTop + clientHeight >= scrollHeight - threshold) {
-        this.loadMoreSchedules()
-      }
+      this.scrollTimeout = setTimeout(() => {
+        // Detectar scroll da página inteira em vez do container
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop
+        const windowHeight = window.innerHeight
+        const documentHeight = document.documentElement.scrollHeight
+        const threshold = 200 // pixels do fim para começar a carregar
+        
+        // Verificar se chegou próximo ao fim da página E ainda há mais dados para carregar
+        if (scrollTop + windowHeight >= documentHeight - threshold && this.pagination.hasMore && !this.loadingMore) {
+          this.loadMoreSchedules()
+        }
+        
+        this.scrollTimeout = null
+      }, 100) // 100ms de throttle
     },
 
     getStatusBadge(status) {
@@ -972,7 +1045,7 @@ export default {
     },
 
     // Carregar clientes disponíveis baseado no cli_access do usuário
-    loadAvailableClients() {
+    async loadAvailableClients() {
       try {
         const userData = localStorage.getItem('user')
         
@@ -981,6 +1054,12 @@ export default {
         }
         
         const user = JSON.parse(userData)
+        
+        console.log('👤 [CLIENTS] Carregando clientes para usuário:', {
+          user: user.user,
+          level: user.level_access,
+          hasCliAccess: !!user.cli_access
+        })
         
         // Tratar cli_access se estiver como string
         let cliAccess = user.cli_access
@@ -994,9 +1073,36 @@ export default {
         
         // Se o usuário tem level_access = 0, tem acesso total
         if (user.level_access === 0) {
-          // Para desenvolvedores, podemos buscar todos os clientes via API
-          // Por enquanto, vamos deixar vazio e carregar dinamicamente dos agendamentos
-          this.availableClients = []
+          console.log('🔓 [CLIENTS] Usuário nível 0 - acesso total')
+          // Para desenvolvedores, carregar clientes dinamicamente dos agendamentos existentes
+          try {
+            const apiClient = window.apiClient
+            const response = await apiClient.request('/schedules', {
+              method: 'GET',
+              params: { page: 1, limit: 100 }
+            })
+            
+            if (response.schedules) {
+              // Extrair clientes únicos dos agendamentos
+              const uniqueClients = new Map()
+              
+              response.schedules.forEach(schedule => {
+                if (schedule.client_cnpj_original && schedule.client) {
+                  uniqueClients.set(schedule.client_cnpj_original, {
+                    cnpj: schedule.client_cnpj_original,
+                    name: schedule.client,
+                    number: schedule.client_cnpj_original
+                  })
+                }
+              })
+              
+              this.availableClients = Array.from(uniqueClients.values())
+              console.log(`✅ [CLIENTS] Carregados ${this.availableClients.length} clientes dinamicamente`)
+            }
+          } catch (error) {
+            console.error('❌ [CLIENTS] Erro ao carregar clientes dinamicamente:', error)
+            this.availableClients = []
+          }
           return
         }
         
@@ -1013,8 +1119,10 @@ export default {
           })
           
           this.availableClients = clients
+          console.log(`✅ [CLIENTS] Carregados ${clients.length} clientes do cli_access`)
         } else {
           this.availableClients = []
+          console.log('⚠️ [CLIENTS] Nenhum cli_access encontrado')
         }
       } catch (error) {
         console.error('❌ Erro ao carregar clientes disponíveis:', error)
@@ -1081,24 +1189,78 @@ export default {
 
     // Métodos para busca por NFe
     handleSearchResults(data) {
-      // Emitir o evento para o componente pai (App.vue) lidar com os resultados
-      this.$emit('search-results', data)
+      console.log('🔍 Resultados recebidos no SchedulesList:', data)
+      
+      const results = data.results || []
+      
+      // Salvar agendamentos originais se ainda não estão salvos
+      if (!this.isSearchActive) {
+        this.originalSchedules = [...this.schedules]
+      }
+      
+      if (results.length > 0) {
+        // Substituir a lista de agendamentos pelos resultados da busca
+        this.schedules = results
+        this.isSearchActive = true
+        this.currentSearchInfo = {
+          type: data.searchType,
+          value: data.searchValue,
+          count: results.length
+        }
+        
+        this.$emit('notification', `${results.length} agendamento(s) encontrado(s) - Lista filtrada`, 'success')
+      } else {
+        // Se não há resultados, limpar a lista
+        this.schedules = []
+        this.isSearchActive = true
+        this.currentSearchInfo = {
+          type: data.searchType,
+          value: data.searchValue,
+          count: 0
+        }
+        
+        this.$emit('notification', 'Nenhum agendamento encontrado', 'info')
+      }
     },
 
     handleSearchError(error) {
-      // Emitir o evento para o componente pai (App.vue) lidar com o erro
-      this.$emit('search-error', error)
+      this.$emit('notification', error, 'error')
     },
 
     handleSearchStart() {
-      // Emitir o evento para o componente pai (App.vue) indicar início da busca
-      this.$emit('search-start')
+      console.log('🔍 Iniciando busca por NFe/chave no SchedulesList...')
+    },
+
+    clearSearch() {
+      if (this.isSearchActive) {
+        // Restaurar agendamentos originais
+        this.schedules = [...this.originalSchedules]
+        this.isSearchActive = false
+        this.currentSearchInfo = null
+        this.originalSchedules = []
+        
+        this.$emit('notification', 'Busca limpa - Lista restaurada', 'info')
+      }
     }
   },
 
-  mounted() {
-    this.loadAvailableClients()
+  async mounted() {
+    await this.loadAvailableClients()
     this.loadSchedules()
+    
+    // Adicionar listener para scroll da página
+    window.addEventListener('scroll', this.handleScroll, { passive: true })
+  },
+
+  beforeUnmount() {
+    // Remover listener para evitar memory leaks
+    window.removeEventListener('scroll', this.handleScroll)
+    
+    // Limpar timeout se existir
+    if (this.scrollTimeout) {
+      clearTimeout(this.scrollTimeout)
+      this.scrollTimeout = null
+    }
   },
 }
 </script>
@@ -1310,12 +1472,11 @@ export default {
 
 /* Actions alignment corrigido */
 
-/* Table wrapper for infinite scroll */
+/* Table wrapper - sem scroll interno, deixa a página controlar */
 .table-wrapper {
-  max-height: 600px;
-  overflow-y: auto;
   border: 1px solid #dee2e6;
   border-radius: 0.375rem;
+  width: 100%;
 }
 
 .schedules-table {
@@ -1323,15 +1484,17 @@ export default {
   margin-bottom: 0;
 }
 
-/* Loading more indicator */
+/* Loading more indicator - agora fora da tabela */
 .loading-more {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
+  padding: 1.5rem;
   color: #6c757d;
-  border-top: 1px solid #dee2e6;
   background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  margin-top: 1rem;
 }
 
 .loading-more i {
@@ -1341,6 +1504,30 @@ export default {
 .loading-more p {
   margin: 0;
   font-size: 0.875rem;
+}
+
+/* End of list indicator */
+.end-of-list {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  color: #28a745;
+  background-color: #f8fff9;
+  border: 1px solid #d4edda;
+  border-radius: 0.375rem;
+  margin-top: 1rem;
+}
+
+.end-of-list i {
+  margin-right: 0.5rem;
+  color: #28a745;
+}
+
+.end-of-list p {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 500;
 }
 
 @media (max-width: 768px) {
@@ -1366,7 +1553,7 @@ export default {
   }
   
   .table-wrapper {
-    max-height: 400px;
+    /* Sem altura máxima - deixa a tabela crescer naturalmente */
   }
 }
 
@@ -1397,6 +1584,194 @@ export default {
   color: #7b1fa2;
   border: 1px solid #ba68c8;
   font-weight: 500;
+}
+
+/* Search Indicator Styles */
+.search-indicator {
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.search-active-card {
+  background: linear-gradient(135deg, #e3f2fd 0%, #f8f9fa 100%);
+  border: 2px solid #2196f3;
+  border-radius: 12px;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 2px 8px rgba(33, 150, 243, 0.15);
+  transition: all 0.2s ease;
+}
+
+.search-active-card:hover {
+  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.2);
+  transform: translateY(-1px);
+}
+
+.search-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+}
+
+.search-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.search-icon {
+  width: 40px;
+  height: 40px;
+  background: linear-gradient(135deg, #2196f3, #1976d2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 1.1rem;
+  box-shadow: 0 2px 6px rgba(33, 150, 243, 0.3);
+}
+
+.search-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.search-type {
+  font-size: 0.85rem;
+  color: #666;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.search-value {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1976d2;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+
+.search-results {
+  margin-left: auto;
+  margin-right: 1rem;
+}
+
+.results-count {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.count-number {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1976d2;
+  line-height: 1;
+}
+
+.count-label {
+  font-size: 0.75rem;
+  color: #666;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.search-actions {
+  margin-left: auto;
+}
+
+.clear-search-btn {
+  background: linear-gradient(135deg, #f44336, #d32f2f);
+  border: none;
+  border-radius: 8px;
+  color: white;
+  padding: 0.6rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(244, 67, 54, 0.3);
+}
+
+.clear-search-btn:hover {
+  background: linear-gradient(135deg, #d32f2f, #b71c1c);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(244, 67, 54, 0.4);
+}
+
+.clear-search-btn:active {
+  transform: translateY(0);
+}
+
+/* Responsividade para o indicador de busca */
+@media (max-width: 768px) {
+  .search-active-card {
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1.25rem;
+  }
+  
+  .search-content {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .search-results {
+    margin: 0;
+  }
+  
+  .search-actions {
+    margin: 0;
+    width: 100%;
+  }
+  
+  .clear-search-btn {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  .search-header {
+    flex-direction: column;
+    text-align: center;
+    gap: 0.5rem;
+  }
+  
+  .search-details {
+    align-items: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .search-value {
+    font-size: 0.95rem;
+    word-break: break-all;
+  }
+  
+  .search-icon {
+    width: 35px;
+    height: 35px;
+    font-size: 1rem;
+  }
 }
 
 </style>

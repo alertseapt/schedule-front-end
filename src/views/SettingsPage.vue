@@ -1,20 +1,5 @@
 <template>
   <div class="settings-page">
-    <!-- Page Header -->
-    <div class="page-header">
-      <div class="header-content">
-        <div class="header-info">
-          <h1 class="page-title">
-            <i class="fas fa-cog"></i>
-            Configurações do Sistema
-          </h1>
-          <p class="page-description">
-            Configure e-mail e notificações do sistema
-          </p>
-        </div>
-      </div>
-    </div>
-
     <!-- Settings Container -->
     <div class="settings-container">
 

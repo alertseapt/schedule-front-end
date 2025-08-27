@@ -46,6 +46,7 @@ export function validateTXTGeneration(user, selectedSchedules) {
 
 /**
  * Gera o conteúdo do arquivo TXT no formato CORPEM
+ * Formato da linha: [Pedido:30][NFe:10][Série:3][Data:8][Valor:10][Código:20][Qtd:10][ValorUnit:10][ChaveNFe:44]
  * @param {Array} schedules - Agendamentos selecionados
  * @returns {String} - Conteúdo do arquivo TXT
  */
@@ -76,9 +77,12 @@ export function generateTXTContent(schedules) {
           const quantidade = padField(product.quantity || '', 10)
           const valorUnitario = padField(formatMonetaryValue(product.unit_value), 10)
           
-          // Montar linha do TXT
+          // Chave de acesso da NFe (44 caracteres)
+          const chaveNfe = padField(schedule.nfe_key || '', 44)
+          
+          // Montar linha do TXT (formato original + 44 caracteres da chave NFe)
           const linha = pedidoCompra + nfFornecedor + serieNf + dataEmissaoPadded + 
-                       valorNota + codigoMercadoria + quantidade + valorUnitario
+                       valorNota + codigoMercadoria + quantidade + valorUnitario + chaveNfe
           
           txtContent += linha + '\n'
         })
@@ -88,8 +92,11 @@ export function generateTXTContent(schedules) {
         const quantidade = padField('', 10)
         const valorUnitario = padField('', 10)
         
+        // Chave de acesso da NFe (44 caracteres)
+        const chaveNfe = padField(schedule.nfe_key || '', 44)
+        
         const linha = pedidoCompra + nfFornecedor + serieNf + dataEmissaoPadded + 
-                     valorNota + codigoMercadoria + quantidade + valorUnitario
+                     valorNota + codigoMercadoria + quantidade + valorUnitario + chaveNfe
         
         txtContent += linha + '\n'
       }

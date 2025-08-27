@@ -25,29 +25,6 @@
       <main class="main-content">
         <!-- Top Bar -->
         <div class="top-bar">
-          <!-- NFe Search (centered) -->
-          <div class="search-container-top">
-            <div class="search-input-group-top">
-              <i class="fas fa-search search-icon-top"></i>
-              <input
-                type="text"
-                v-model="topSearchInput"
-                @keyup.enter="handleTopSearch"
-                :disabled="loading"
-                placeholder="Digite o número da NF-e ou chave de acesso (44 dígitos)"
-                class="search-input-top"
-              />
-              <button
-                @click="handleTopSearch"
-                :disabled="loading || !topSearchInput.trim()"
-                class="search-button-top"
-              >
-                <i v-if="loading" class="fas fa-spinner fa-spin"></i>
-                <i v-else class="fas fa-search"></i>
-              </button>
-            </div>
-          </div>
-          
           <!-- User Profile (right) -->
           <div class="user-profile" @click="toggleUserDropdown" ref="userProfile">
             <div class="user-avatar">
@@ -67,7 +44,7 @@
         </div>
 
         <!-- Dashboard Content -->
-        <div v-if="!showSchedulesList && !showSettingsPage && !showXmlUploadPage" class="content-area">
+        <div v-show="!showSchedulesList && !showSettingsPage && !showXmlUploadPage" class="content-area">
           <!-- Tabela de Agendamentos (transferida de SchedulesList.vue) -->
           <div class="schedules-list">
             <!-- Header -->
@@ -106,8 +83,31 @@
               </div>
             </div>
 
-            <!-- Filtros -->
+            <!-- Filtros e Busca -->
             <div class="filters-container">
+              <!-- Search Bar -->
+              <div class="search-row">
+                <div class="search-input-group">
+                  <input
+                    type="text"
+                    v-model="mainSearchInput"
+                    @keyup.enter="handleMainSearch"
+                    :disabled="loading"
+                    placeholder="Digite o número da NF-e ou chave de acesso (44 dígitos)"
+                    class="search-input"
+                  />
+                  <button
+                    @click="handleMainSearch"
+                    :disabled="loading || !mainSearchInput.trim()"
+                    class="search-button"
+                  >
+                    <i v-if="loading" class="fas fa-spinner fa-spin"></i>
+                    <i v-else class="fas fa-search"></i>
+                    Buscar
+                  </button>
+                </div>
+              </div>
+
               <div class="filter-row">
                 <div class="filters-header">
                   <i class="fas fa-filter"></i>
@@ -399,25 +399,43 @@
         </div>
 
         <!-- Schedules List -->
-        <div v-if="showSchedulesList" class="content-area">
+        <div v-show="showSchedulesList" class="content-area">
           <SchedulesList 
+            ref="schedulesListRef"
             @notification="addNotification"
-            @search-results="handleSearchResults"
-            @search-error="handleSearchError"
-            @search-start="handleSearchStart"
           > </SchedulesList>
         </div>
 
         <!-- Settings Page -->
-        <div v-if="showSettingsPage" class="content-area">
-          <SettingsPage @notification="addNotification"> </SettingsPage>
+        <div v-show="showSettingsPage" class="content-area">
+          <SettingsPage 
+            ref="settingsPageRef"
+            @notification="addNotification"
+          > </SettingsPage>
         </div>
 
         <!-- XML Upload Page -->
-        <div v-if="showXmlUploadPage" class="content-area">
-          <XmlUploadPage @notification="addNotification"> </XmlUploadPage>
+        <div v-show="showXmlUploadPage" class="content-area">
+          <XmlUploadPage 
+            ref="xmlUploadPageRef"
+            @notification="addNotification"
+          > </XmlUploadPage>
         </div>
       </main>
+    </div>
+
+    <!-- Preloading Indicator -->
+    <div v-if="preloadingProgress > 0 && preloadingProgress < 100" class="preloading-indicator">
+      <div class="preload-content">
+        <div class="preload-icon">
+          <i class="fas fa-rocket"></i>
+        </div>
+        <div class="preload-text">Preparando páginas...</div>
+        <div class="preload-progress">
+          <div class="progress-bar" :style="{ width: preloadingProgress + '%' }"></div>
+        </div>
+        <div class="preload-percentage">{{ preloadingProgress }}%</div>
+      </div>
     </div>
 
     <!-- Global Notifications -->
@@ -718,6 +736,10 @@ export default {
       showSchedulesList: false,
       showSettingsPage: false,
       showXmlUploadPage: false,
+      
+      // Pre-loading control
+      pagesPreloaded: false,
+      preloadingProgress: 0,
 
       dashboardStats: {
         pendingDeliveries: 0,
@@ -740,8 +762,10 @@ export default {
       bulkActionLoading: false,
       
       // Top bar properties
-      topSearchInput: '',
       showUserDropdown: false,
+      
+      // Search
+      mainSearchInput: '',
       
       // Filtros
       currentFilters: {
@@ -771,15 +795,6 @@ export default {
       // Dados de clientes carregados globalmente
       availableClientsGlobal: [],
       clientsLoadingGlobal: false,
-      
-      // Filtros
-      currentFilters: {
-        status: '',
-        client: '',
-        date_from: '',
-        date_to: '',
-      },
-      availableClients: [],
       
       // Controle de busca
       isSearchActive: false,
@@ -928,6 +943,11 @@ export default {
       // Inicializar permissões
       initializePermissions();
       
+      // Iniciar pré-carregamento em background após carregamento inicial
+      setTimeout(() => {
+        this.preloadPages();
+      }, 1000);
+      
       console.log('App.vue carregado com sucesso');
       
     } catch (error) {
@@ -943,6 +963,43 @@ export default {
     document.removeEventListener('click', this.handleClickOutside)
   },
   methods: {
+    // Pre-loading methods
+    async preloadPages() {
+      if (this.pagesPreloaded) return
+      
+      console.log('🚀 Iniciando pré-carregamento das páginas...')
+      this.preloadingProgress = 10
+      
+      try {
+        // Aguardar um frame para garantir que os componentes foram montados
+        await this.$nextTick()
+        this.preloadingProgress = 30
+        
+        // Simular carregamento inicial das páginas
+        await new Promise(resolve => setTimeout(resolve, 500))
+        this.preloadingProgress = 60
+        
+        // Pré-carregar dados se necessário
+        await new Promise(resolve => setTimeout(resolve, 300))
+        this.preloadingProgress = 80
+        
+        await new Promise(resolve => setTimeout(resolve, 200))
+        this.preloadingProgress = 100
+        this.pagesPreloaded = true
+        
+        console.log('✅ Pré-carregamento concluído!')
+        
+        // Limpar progress após 1 segundo
+        setTimeout(() => {
+          this.preloadingProgress = 0
+        }, 1000)
+        
+      } catch (error) {
+        console.error('❌ Erro no pré-carregamento:', error)
+        this.preloadingProgress = 0
+      }
+    },
+
     // Métodos de Loading Unificado
     setLoading(isLoading, message = 'Carregando...', subtext = 'Por favor, aguarde um momento') {
       this.loading = isLoading
@@ -965,8 +1022,8 @@ export default {
     },
 
     // Top Bar Methods
-    async handleTopSearch() {
-      const input = this.topSearchInput.trim()
+    async handleMainSearch() {
+      const input = this.mainSearchInput.trim()
       
       if (!input) {
         return
@@ -975,7 +1032,7 @@ export default {
       this.setLoading(true, 'Buscando...', 'Procurando agendamento')
       
       try {
-        console.log('🔍 Iniciando busca por NFe/chave:', input)
+        console.log('🔍 Iniciando busca na página principal por NFe/chave:', input)
         
         const response = await apiService.post('/schedule-verification/search', {
           input: input
@@ -991,7 +1048,7 @@ export default {
           })
           
           // Limpar campo após busca bem-sucedida
-          this.topSearchInput = ''
+          this.mainSearchInput = ''
           this.addNotification(`Encontrados ${response.results.length} agendamento(s)`, 'success')
         } else {
           const errorMsg = response?.message || 'Erro na busca'
@@ -1145,12 +1202,22 @@ export default {
           break
         case 'agendamento':
           this.showSchedulesList = true
+          // Se ainda não pré-carregou, mostrar indicação
+          if (!this.pagesPreloaded) {
+            this.addNotification('🚀 Primeira vez acessando - preparando página...', 'info')
+          }
           break
         case 'agendamento-lote':
           this.showXmlUploadPage = true
+          if (!this.pagesPreloaded) {
+            this.addNotification('🚀 Primeira vez acessando - preparando página...', 'info')
+          }
           break
         case 'configuracoes':
           this.showSettingsPage = true
+          if (!this.pagesPreloaded) {
+            this.addNotification('🚀 Primeira vez acessando - preparando página...', 'info')
+          }
           break
         default:
           console.log('Menu não implementado:', menuId)
@@ -1229,13 +1296,17 @@ export default {
       try {
         console.log('Buscando agendamentos...')
         // Usar o apiClient global com cache
+        const requestParams = {
+          page: this.pagination.page,
+          limit: this.pagination.limit,
+          ...this.currentFilters
+        }
+        
+        console.log('🔍 Parâmetros da requisição:', requestParams)
+        
         const response = await apiClient.request('/schedules', {
           method: 'GET',
-          params: {
-            page: this.pagination.page,
-            limit: this.pagination.limit,
-            ...this.currentFilters
-          }
+          params: requestParams
         })
         
         const newSchedules = response.schedules || []
@@ -1247,7 +1318,7 @@ export default {
         }
         
         this.pagination.total = response.pagination?.total || 0
-        this.pagination.hasMore = newSchedules.length === this.pagination.limit
+        this.pagination.hasMore = newSchedules.length === this.pagination.limit && newSchedules.length > 0
         console.log('Agendamentos carregados:', this.schedules.length)
       } catch (error) {
         if (this.pagination.page === 1) {
@@ -1352,7 +1423,7 @@ export default {
             }
           }),
           new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Timeout na consulta de agendamentos')), 15000) // 15 segundos
+            setTimeout(() => reject(new Error('Timeout na consulta de agendamentos')), 45000) // 45 segundos
           )
         ])
         
@@ -1361,22 +1432,25 @@ export default {
           this.schedules = response.schedules
           this.pagination = response.pagination || {}
           
+          // Definir hasMore corretamente baseado na quantidade retornada
+          this.pagination.hasMore = response.schedules.length === this.pagination.limit && response.schedules.length > 0
+          
           // Calcular estatísticas a partir dos dados já carregados
           this.calculateStatsFromData(response.schedules)
           
-          console.log(`💡 Dados carregados: ${response.schedules.length} agendamentos, stats calculados!`)
+          console.log(`💡 Dados carregados: ${response.schedules.length} agendamentos, stats calculados! hasMore: ${this.pagination.hasMore}`)
         } else {
           console.warn('⚠️ Resposta vazia ou inválida da API')
           // Definir dados padrão para evitar interface quebrada
           this.schedules = []
-          this.pagination = { page: 1, limit: 50, total: 0 }
+          this.pagination = { page: 1, limit: 50, total: 0, hasMore: false }
         }
       } catch (error) {
         console.error('❌ Erro ao carregar dados essenciais:', error)
         
         // Definir dados padrão para manter interface funcional
         this.schedules = []
-        this.pagination = { page: 1, limit: 50, total: 0 }
+        this.pagination = { page: 1, limit: 50, total: 0, hasMore: false }
         
         if (error.message === 'Timeout na consulta de agendamentos') {
           console.warn('⏱️ Timeout detectado - requisição muito lenta')
@@ -1746,6 +1820,19 @@ export default {
       if (window.apiClient && window.apiClient.clearCache) {
         window.apiClient.clearCache('/schedules')
         console.log('🗑️ Cache de agendamentos limpo após ação')
+      }
+      
+      // Resetar paginação para carregar desde o início
+      this.pagination.page = 1
+      this.pagination.hasMore = true
+      
+      // Limpar filtros para carregar todos os agendamentos permitidos
+      this.currentFilters = {
+        status: '',
+        client: '',
+        date_from: '',
+        date_to: '',
+        nfe_number: ''
       }
       
       // Atualização completa
@@ -2488,7 +2575,7 @@ export default {
             method: 'GET',
           }),
           new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Timeout ao carregar clientes')), 8000)
+            setTimeout(() => reject(new Error('Timeout ao carregar clientes')), 20000)
           )
         ])
 
@@ -3270,92 +3357,169 @@ window.apiClient = apiClient
   }
 }
 
+/* Content Area Override - Reduzir padding superior */
+.content-area {
+  padding-top: 0px !important;
+}
+
+/* Page Header Override */
+.page-header {
+  margin-bottom: 20px !important;
+}
+
 /* Top Bar Styles */
 .top-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   padding: 0.75rem 2rem;
   background: white;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  margin-bottom: 0.75rem;
+  margin-bottom: 20px;
   border-radius: 8px;
   position: relative;
   border: 1px solid #e9ecef;
 }
 
-/* Search Container (centered) */
-.search-container-top {
-  flex: 1;
+
+/* Search Row inside Filters Container */
+.search-row {
   display: flex;
   justify-content: center;
-  max-width: 600px;
-  margin: 0 auto;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e9ecef;
 }
 
-.search-input-group-top {
+.search-input-group {
   display: flex;
   align-items: center;
-  position: relative;
-  width: 100%;
   max-width: 500px;
+  width: 100%;
 }
 
-.search-icon-top {
-  position: absolute;
-  left: 15px;
-  color: #6c757d;
-  z-index: 2;
-  font-size: 1rem;
-}
-
-.search-input-top {
+.search-input-group .search-input {
   flex: 1;
-  padding: 12px 15px 12px 45px;
-  border: 2px solid #e9ecef;
-  border-radius: 25px 0 0 25px;
-  font-size: 1rem;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px 0 0 4px;
+  font-size: 0.9rem;
   background: white;
   transition: all 0.3s ease;
   outline: none;
 }
 
-.search-input-top:focus {
+.search-input-group .search-input:focus {
   border-color: #28a745;
-  box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.1);
+  box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.1);
 }
 
-.search-input-top:disabled {
+.search-input-group .search-input:disabled {
   background-color: #f8f9fa;
   cursor: not-allowed;
 }
 
-.search-button-top {
-  padding: 12px 20px;
+.search-input-group .search-button {
+  padding: 8px 16px;
   background: #28a745;
   color: white;
-  border: 2px solid #28a745;
+  border: 1px solid #28a745;
   border-left: none;
-  border-radius: 0 25px 25px 0;
+  border-radius: 0 4px 4px 0;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.3s ease;
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  font-size: 0.85rem;
 }
 
-.search-button-top:hover:not(:disabled) {
+.search-input-group .search-button:hover:not(:disabled) {
   background: #218838;
   border-color: #218838;
-  transform: translateY(-1px);
 }
 
-.search-button-top:disabled {
+.search-input-group .search-button:disabled {
   background: #6c757d;
   border-color: #6c757d;
   cursor: not-allowed;
-  transform: none;
+}
+
+/* Preloading Indicator */
+.preloading-indicator {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 9999;
+  background: linear-gradient(135deg, #007bff, #0056b3);
+  color: white;
+  padding: 15px 20px;
+  border-radius: 12px;
+  box-shadow: 0 8px 25px rgba(0, 123, 255, 0.3);
+  min-width: 250px;
+  animation: slideInUp 0.3s ease-out;
+}
+
+.preload-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+
+.preload-icon {
+  font-size: 1.5rem;
+  animation: bounce 2s infinite;
+}
+
+.preload-text {
+  font-weight: 500;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.preload-progress {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background: linear-gradient(90deg, #28a745, #20c997);
+  transition: width 0.3s ease;
+  border-radius: 3px;
+}
+
+.preload-percentage {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+@keyframes slideInUp {
+  from {
+    transform: translateY(100px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes bounce {
+  0%, 20%, 50%, 80%, 100% {
+    transform: translateY(0);
+  }
+  40% {
+    transform: translateY(-10px);
+  }
+  60% {
+    transform: translateY(-5px);
+  }
 }
 
 /* User Profile */
@@ -3445,32 +3609,34 @@ window.apiClient = apiClient
     padding: 0.75rem 1rem;
   }
   
-  .search-container-top {
-    width: 100%;
-  }
-  
-  .search-input-group-top {
-    max-width: none;
-  }
-  
-  .search-input-top,
-  .search-button-top {
-    border-radius: 6px;
-  }
-  
-  .search-input-top {
-    margin-bottom: 0.5rem;
-    border-right: 2px solid #e9ecef;
-  }
-  
-  .search-button-top {
-    width: 100%;
-    justify-content: center;
-    border: 2px solid #28a745;
-  }
   
   .user-profile {
     align-self: flex-end;
+  }
+
+  /* Responsivo para busca */
+  .search-row {
+    justify-content: stretch;
+  }
+
+  .search-input-group {
+    max-width: none;
+  }
+
+  .search-input-group .search-input,
+  .search-input-group .search-button {
+    border-radius: 4px;
+  }
+
+  .search-input-group .search-input {
+    margin-bottom: 0.5rem;
+    border-right: 1px solid #ddd;
+  }
+
+  .search-input-group .search-button {
+    width: 100%;
+    justify-content: center;
+    border: 1px solid #28a745;
   }
 }
 

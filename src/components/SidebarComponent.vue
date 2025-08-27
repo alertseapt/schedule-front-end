@@ -11,7 +11,7 @@
 
     <nav class="sidebar-menu">
       <div
-        v-for="item in filteredMainMenuItems"
+        v-for="item in filteredAllMenuItems"
         :key="item.id"
         :class="['menu-item', { active: isMenuActive(item.id) }]"
       >
@@ -24,21 +24,6 @@
         </div>
       </div>
     </nav>
-
-    <!-- Settings Menu (moved to bottom) -->
-    <div
-      v-for="item in filteredSettingsItems"
-      :key="item.id"
-      :class="['menu-item', { active: isMenuActive(item.id) }]"
-      style="margin: 8px 12px;"
-    >
-      <div @click="handleMenuClick(item.id)" class="menu-main">
-        <div class="icon-container">
-          <i :class="item.icon"></i>
-        </div>
-        <span class="menu-label">{{ item.label }}</span>
-      </div>
-    </div>
 
   </aside>
 </template>
@@ -125,33 +110,18 @@ export default {
       }
     },
 
-    filteredMainMenuItems() {
+    filteredAllMenuItems() {
       if (!this.user || this.user.level_access === undefined) {
-        return this.menuItems.filter(item => !item.requiresLevel && item.id !== 'configuracoes')
+        return this.menuItems.filter(item => !item.requiresLevel)
       }
 
       return this.menuItems.filter(item => {
-        if (item.id === 'configuracoes') return false // Excluir configurações dos itens principais
         if (item.requiresLevel !== undefined) {
           return this.user.level_access === item.requiresLevel
         }
         return true
       })
-    },
-
-    filteredSettingsItems() {
-      if (!this.user || this.user.level_access === undefined) {
-        return this.menuItems.filter(item => item.id === 'configuracoes')
-      }
-
-      return this.menuItems.filter(item => {
-        if (item.id !== 'configuracoes') return false // Apenas configurações
-        if (item.requiresLevel !== undefined) {
-          return this.user.level_access === item.requiresLevel
-        }
-        return true
-      })
-    },
+    }
   },
 
   methods: {

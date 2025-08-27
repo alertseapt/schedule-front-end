@@ -879,7 +879,7 @@ export default {
 
     async checkExistingProductsWithTimeout() {
       const timeout = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Timeout')), 10000) // 10 segundos
+        setTimeout(() => reject(new Error('Timeout')), 30000) // 30 segundos
       )
       
       try {
@@ -1034,7 +1034,7 @@ export default {
 
     async loadAvailableClientsWithTimeout() {
       const timeout = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Timeout')), 8000) // 8 segundos
+        setTimeout(() => reject(new Error('Timeout')), 20000) // 20 segundos
       )
       
       try {
