@@ -73,7 +73,7 @@ export function generateTXTContent(schedules) {
       // Processar produtos se existirem
       if (info?.products && Array.isArray(info.products)) {
         info.products.forEach(product => {
-          const codigoMercadoria = padField(product.supplier_code || product.code || '', 20)
+          const codigoMercadoria = padField(product.client_code || product.code || '', 20)
           const quantidade = padField(product.quantity || '', 10)
           const valorUnitario = padField(formatMonetaryValue(product.unit_value), 10)
           
@@ -199,14 +199,79 @@ export function downloadTXT(content, filename) {
 }
 
 /**
- * Gera nome do arquivo baseado no cliente e data
- * @param {String} clientCnpj - CNPJ do cliente
+ * Envia o arquivo TXT para o servidor FTP via backend
+ * @param {String} txtContent - Conteúdo do arquivo TXT
+ * @param {String} filename - Nome do arquivo
+ * @returns {Promise<Object>} - { success: boolean, message: string }
+ */
+export async function uploadTXT(txtContent, filename) {
+  try {
+    console.log(`📤 Enviando arquivo ${filename} para FTP via backend`)
+    
+    const apiUrl = process.env.VUE_APP_API_BASE_URL || 'http://localhost:3000'
+    const token = localStorage.getItem('token')
+    
+    if (!token) {
+      throw new Error('Token de autenticação não encontrado')
+    }
+    
+    const response = await fetch(`${apiUrl}/api/schedules/upload-txt`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        txtContent,
+        filename
+      })
+    })
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ message: `HTTP ${response.status}` }))
+      throw new Error(errorData.message || `HTTP ${response.status}: ${response.statusText}`)
+    }
+    
+    const result = await response.json()
+    console.log(`✅ Arquivo ${filename} enviado com sucesso para FTP via backend`)
+    
+    return result
+    
+  } catch (error) {
+    console.error(`❌ Erro ao enviar arquivo ${filename} para FTP:`, error)
+    
+    // Tratamento específico para diferentes tipos de erro
+    let errorMessage = 'Erro desconhecido ao enviar para servidor FTP'
+    
+    if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
+      errorMessage = 'Erro de conectividade: Verifique se o backend está acessível'
+    } else if (error.message.includes('Token')) {
+      errorMessage = 'Erro de autenticação: Faça login novamente'
+    } else if (error.message.includes('HTTP 401')) {
+      errorMessage = 'Não autorizado: Faça login novamente'
+    } else if (error.message.includes('HTTP')) {
+      errorMessage = `Erro do servidor: ${error.message}`
+    } else {
+      errorMessage = `Erro ao enviar para servidor FTP: ${error.message}`
+    }
+    
+    return { 
+      success: false, 
+      message: errorMessage
+    }
+  }
+}
+
+/**
+ * Gera nome do arquivo no formato: 'clientNumber-id1lid2lid3.txt'
+ * @param {String} clientNumber - Número do cliente
+ * @param {Array} scheduleIds - Array com os IDs dos agendamentos
  * @returns {String} - Nome do arquivo
  */
-export function generateFileName(clientCnpj) {
-  const clientName = clientCnpj.replace(/[^a-zA-Z0-9]/g, '_')
-  const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-  return `corpem_${clientName}_${timestamp}.txt`
+export function generateFileName(clientNumber, scheduleIds) {
+  // Gerar nome no formato: 'clientNumber-id1lid2lid3.txt'
+  const idsString = scheduleIds.join('l')
+  return `${clientNumber}-${idsString}.txt`
 }
 
 /**
@@ -230,16 +295,30 @@ export async function generateCorpemTXT(user, selectedSchedules) {
       return { success: false, message: 'Nenhum conteúdo foi gerado para o arquivo TXT' }
     }
 
-    // Gerar nome do arquivo
-    const filename = generateFileName(selectedSchedules[0].client)
+    // Gerar nome do arquivo no formato: 'clientNumber-id1lid2lid3.txt'
+    const clientNumber = selectedSchedules[0].client_info?.number || selectedSchedules[0].client
+    const scheduleIds = selectedSchedules.map(s => s.id)
+    const filename = generateFileName(clientNumber, scheduleIds)
     
     // Executar download e aguardar conclusão
     await downloadTXT(txtContent, filename)
+    
+    // Enviar arquivo para o servidor FTP
+    const uploadResult = await uploadTXT(txtContent, filename)
+    
+    let finalMessage = `Arquivo TXT gerado com sucesso: ${filename} (${selectedSchedules.length} ${selectedSchedules.length === 1 ? 'NFe' : 'NFes'})`
+    
+    if (uploadResult.success) {
+      finalMessage += ` e enviado para o servidor FTP`
+    } else {
+      finalMessage += `. Atenção: ${uploadResult.message}`
+    }
 
     return { 
       success: true, 
-      message: `Arquivo TXT gerado com sucesso: ${filename} (${selectedSchedules.length} ${selectedSchedules.length === 1 ? 'NFe' : 'NFes'})`,
-      filename 
+      message: finalMessage,
+      filename,
+      uploadResult
     }
 
   } catch (error) {

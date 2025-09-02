@@ -88,7 +88,17 @@ setTimeout(() => {
 
   // VERIFICAÇÃO SIMPLES - SEM CHAMADAS DE API
   if (!token || !userData) {
-    console.log('=== SEM TOKEN/USER - REDIRECIONANDO PARA LOGIN ===');
+    console.log('=== SEM TOKEN/USER - VERIFICANDO SE JÁ ESTÁ NA PÁGINA DE LOGIN ===');
+    const currentPath = window.location.pathname;
+    console.log('Página atual:', currentPath);
+    
+    // Se já estiver na página de login, não redirecionar
+    if (currentPath === '/login.html' || currentPath.includes('login.html')) {
+      console.log('Já está na página de login - não redirecionando');
+      return;
+    }
+    
+    console.log('=== REDIRECIONANDO PARA LOGIN ===');
     const loginUrl = '/login.html';
     console.log('Redirecionando para:', loginUrl);
     window.location.href = loginUrl;

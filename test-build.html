@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste - Build Corrigido</title>
+    <script src="dist/config.js"></script>
+    <script src="dist/api-standalone.js"></script>
+</head>
+<body>
+    <h1>Teste de Carregamento dos Scripts</h1>
+    <div id="results">
+        <p id="config-test">Testando config.js...</p>
+        <p id="api-test">Testando api-standalone.js...</p>
+        <p id="final-result">Resultado final:</p>
+    </div>
+
+    <script>
+        // Teste do config.js
+        const configElement = document.getElementById('config-test');
+        if (window.API_URL) {
+            configElement.innerHTML = `✅ config.js OK - API_URL: ${window.API_URL}`;
+            configElement.style.color = 'green';
+        } else {
+            configElement.innerHTML = '❌ config.js FALHOU - API_URL não definida';
+            configElement.style.color = 'red';
+        }
+
+        // Teste do api-standalone.js
+        const apiElement = document.getElementById('api-test');
+        if (window.API_BASE_URL && window.API_CONFIG) {
+            apiElement.innerHTML = `✅ api-standalone.js OK - API_BASE_URL: ${window.API_BASE_URL}`;
+            apiElement.style.color = 'green';
+        } else {
+            apiElement.innerHTML = '❌ api-standalone.js FALHOU - Configuração não carregada';
+            apiElement.style.color = 'red';
+        }
+
+        // Resultado final
+        const finalElement = document.getElementById('final-result');
+        if (window.API_URL && window.API_BASE_URL) {
+            finalElement.innerHTML = '🎉 SUCESSO! Todos os scripts carregaram corretamente.';
+            finalElement.style.color = 'green';
+            finalElement.style.fontWeight = 'bold';
+            
+            console.log('🔧 [TESTE] Configurações carregadas:');
+            console.log('🔧 [TESTE] window.API_URL:', window.API_URL);
+            console.log('🔧 [TESTE] window.API_BASE_URL:', window.API_BASE_URL);
+            console.log('🔧 [TESTE] window.API_CONFIG:', window.API_CONFIG);
+        } else {
+            finalElement.innerHTML = '❌ ERRO! Falha no carregamento dos scripts.';
+            finalElement.style.color = 'red';
+            finalElement.style.fontWeight = 'bold';
+        }
+    </script>
+</body>
+</html>

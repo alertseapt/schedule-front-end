@@ -32,6 +32,17 @@
             <i class="fas fa-exclamation-triangle"></i> Em Tratativa
           </button>
           <button 
+            v-if="canIntegrateCorpem"
+            class="btn btn-sm btn-success me-2" 
+            @click="integrateCorpem"
+            :disabled="integratingCorpem"
+            title="Integrar com CORPEM"
+          >
+            <i v-if="integratingCorpem" class="fas fa-spinner fa-spin"></i>
+            <i v-else class="fas fa-exchange-alt"></i>
+            Integração
+          </button>
+          <button 
             v-if="canEditSchedule"
             class="btn btn-sm btn-outline-primary me-2" 
             @click="openEditModal"
@@ -115,10 +126,10 @@
                   v-for="product in formattedNfeData.products.data"
                   :key="product.id"
                 >
-                  <td>{{ product.supplier_code || product.code || '-' }}</td>
-                  <td>{{ product.supplier_description || product.description || '-' }}</td>
-                  <td>{{ product.client_code || product.code || '-' }}</td>
-                  <td>{{ product.client_description || product.description || '-' }}</td>
+                  <td>{{ product.supplier_code || product.supp_code || product.suppCode || product.code || '-' }}</td>
+                  <td>{{ product.supplier_description || product.supp_desc || product.description || '-' }}</td>
+                  <td>{{ product.client_code || product.cli_code || product.cliCode || product.code || '-' }}</td>
+                  <td>{{ product.client_description || product.cli_desc || product.description || '-' }}</td>
                   <td>{{ product.quantity }} {{ product.unit }}</td>
                   <td>{{ formatCurrency(product.unit_value) }}</td>
                   <td>{{ formatCurrency(product.total_value) }}</td>
@@ -206,6 +217,8 @@
 </template>
 
 <script>
+import apiService from '../services/api.js'
+
 export default {
   name: 'NfeInfoModal',
 
@@ -230,7 +243,8 @@ export default {
       expandedSections: {},
       copySuccess: false,
       selectedNewStatus: '',
-      reprocessing: false
+      reprocessing: false,
+      integratingCorpem: false
     }
   },
 
@@ -350,6 +364,27 @@ export default {
         { value: 'Recusado', label: 'Recusado' }
       ]
     },
+
+    canIntegrateCorpem() {
+      console.log('canIntegrateCorpem user:', this.user)
+      
+      // Verificar se o usuário tem permissão (nível diferente de 1)
+      if (!this.user || this.user.level_access === undefined || this.user.level_access === 1) {
+        return false
+      }
+      
+      // Só mostrar o botão se não for uma marcação (booking) e tiver NFe válida
+      if (this.isBookingSchedule) {
+        return false
+      }
+      
+      // Verificar se tem chave NFe válida
+      const hasValidNfeKey = this.nfeData?.nfe_key && 
+                            this.nfeData.nfe_key.length > 10 && 
+                            !this.nfeData.nfe_key.startsWith('effectivate_')
+      
+      return hasValidNfeKey
+    },
   },
 
   methods: {
@@ -447,6 +482,69 @@ export default {
       
       // Reset do dropdown
       this.selectedNewStatus = ''
+    },
+
+    async integrateCorpem() {
+      if (!this.nfeData?.id) {
+        console.error('❌ ID do agendamento não encontrado')
+        return
+      }
+
+      this.integratingCorpem = true
+      
+      try {
+        console.log('🏢 Iniciando integração CORPEM manual para agendamento:', this.nfeData.id)
+        
+        const response = await apiService.post('/corpem/products/register', {
+          schedule_id: this.nfeData.id
+        })
+        
+        if (response.success) {
+          this.$emit('show-success-toast', {
+            title: 'Integração CORPEM Completa',
+            message: `Integração realizada com sucesso! ${response.registered_count} produtos e NFe registrados no CORPEM.`
+          })
+          
+          console.log('✅ Integração CORPEM concluída:', response)
+        } else {
+          // Se não foi sucesso completo, mas há resultados parciais
+          if (response.results) {
+            const productsOk = response.results.products?.success;
+            const nfeOk = response.results.nfe?.success;
+            
+            let message = response.message;
+            if (productsOk && !nfeOk) {
+              message += ' (Produtos OK, NFe com erro)';
+            } else if (!productsOk && nfeOk) {
+              message += ' (NFe OK, Produtos com erro)';
+            }
+            
+            this.$emit('show-success-toast', {
+              title: 'Integração CORPEM Parcial',
+              message: message
+            })
+          } else {
+            throw new Error(response.message || 'Erro na integração')
+          }
+        }
+        
+      } catch (error) {
+        console.error('❌ Erro na integração CORPEM:', error)
+        
+        let errorMessage = 'Erro na integração com CORPEM'
+        if (error.response?.error) {
+          errorMessage = error.response.error
+        } else if (error.message) {
+          errorMessage = error.message
+        }
+        
+        this.$emit('show-error-toast', {
+          title: 'Erro na Integração CORPEM',
+          message: errorMessage
+        })
+      } finally {
+        this.integratingCorpem = false
+      }
     },
     
 

@@ -44,7 +44,7 @@
         </div>
 
         <!-- Dashboard Content -->
-        <div v-show="!showSchedulesList && !showSettingsPage && !showXmlUploadPage" class="content-area">
+        <div v-show="!showSchedulesList && !showSettingsPage && !showXmlUploadPage && !showProductsPage" class="content-area">
           <!-- Tabela de Agendamentos (transferida de SchedulesList.vue) -->
           <div class="schedules-list">
             <!-- Header -->
@@ -132,24 +132,6 @@
                   </select>
                 </div>
 
-                <div class="filter-group">
-                  <label for="client">Cliente/Estoque:</label>
-                  <select
-                    id="client"
-                    v-model="currentFilters.client"
-                    @change="handleFilterChange"
-                    class="form-control"
-                  >
-                    <option value="">Todos</option>
-                    <option
-                      v-for="client in filteredAvailableClients"
-                      :key="client.cnpj"
-                      :value="client.cnpj"
-                    >
-                      {{ client.name }}
-                    </option>
-                  </select>
-                </div>
 
                 <div class="filter-group">
                   <label for="date-from">Data de:</label>
@@ -389,6 +371,8 @@
               @change-status="handleChangeStatusFromTratativa"
               @reprocess-success="handleReprocessSuccess"
               @reprocess-toast="handleReprocessToast"
+              @show-success-toast="addNotification"
+              @show-error-toast="addNotification"
             />
             <ScheduleEditModal v-if="showEditModal" :schedule-data="scheduleToEdit" :show-modal="showEditModal" @close="closeEditModal" @updated="handleScheduleUpdated" @notification="addNotification" />
             <ScheduleCreationModal v-if="showScheduleCreationModal" :show-modal="showScheduleCreationModal" @close="closeScheduleCreationModal" @created="handleScheduleCreated" />
@@ -403,6 +387,7 @@
           <SchedulesList 
             ref="schedulesListRef"
             @notification="addNotification"
+            @schedules-loaded="handleSchedulesFromList"
           > </SchedulesList>
         </div>
 
@@ -420,6 +405,14 @@
             ref="xmlUploadPageRef"
             @notification="addNotification"
           > </XmlUploadPage>
+        </div>
+
+        <!-- Products Page -->
+        <div v-show="showProductsPage" class="content-area">
+          <ProductsPage 
+            ref="productsPageRef"
+            @notification="addNotification"
+          > </ProductsPage>
         </div>
       </main>
     </div>
@@ -460,6 +453,7 @@ import ScheduleBookingModal from './components/ScheduleBookingModal.vue'
 import CorpemTxtGenerator from './components/CorpemTxtGenerator.vue'
 import SettingsPage from './views/SettingsPage.vue'
 import XmlUploadPage from './views/XmlUploadPage.vue'
+import ProductsPage from './views/ProductsPage.vue'
 import { checkPermission, checkUserLevel } from './utils/permissions.js'
 import { BASE_URL } from './config/api.js'
 import apiService from './services/api.js'
@@ -724,6 +718,7 @@ export default {
     CorpemTxtGenerator,
     SettingsPage,
     XmlUploadPage,
+    ProductsPage,
   },
 
   data() {
@@ -736,6 +731,7 @@ export default {
       showSchedulesList: false,
       showSettingsPage: false,
       showXmlUploadPage: false,
+      showProductsPage: false,
       
       // Pre-loading control
       pagesPreloaded: false,
@@ -770,11 +766,9 @@ export default {
       // Filtros
       currentFilters: {
         status: '',
-        client: '',
         date_from: '',
         date_to: ''
       },
-      availableClients: [],
       showInfoModal: false,
       showEditModal: false,
       showScheduleCreationModal: false,
@@ -873,9 +867,6 @@ export default {
       ]
     },
 
-    filteredAvailableClients() {
-      return this.availableClients || []
-    },
 
     hasActiveFilters() {
       return Object.values(this.currentFilters).some(
@@ -924,8 +915,8 @@ export default {
   async mounted() {
     // App.vue inicializado
     
-    // Adicionar event listener para scroll da página (infinite scroll)
-    window.addEventListener('scroll', this.handleScroll)
+    // CORREÇÃO: Não adicionar scroll infinito na página principal para evitar duplicatas
+    // O scroll infinito será usado apenas na página de agendamentos (SchedulesList.vue)
     
     // Event listener para fechar dropdown do usuário ao clicar fora
     document.addEventListener('click', this.handleClickOutside)
@@ -950,6 +941,14 @@ export default {
       
       console.log('App.vue carregado com sucesso');
       
+      // Verificar se há mensagem de sucesso salva após reload
+      const reloadSuccessMessage = localStorage.getItem('reloadSuccessMessage')
+      if (reloadSuccessMessage) {
+        this.addNotification(reloadSuccessMessage, 'success')
+        localStorage.removeItem('reloadSuccessMessage')
+        console.log('📢 Mensagem de sucesso exibida após reload:', reloadSuccessMessage)
+      }
+      
     } catch (error) {
       console.error('Erro na inicialização do App.vue:', error)
       this.setLoading(false)
@@ -957,8 +956,7 @@ export default {
     }
   },
   beforeUnmount() {
-    // Remover event listener para scroll da página
-    window.removeEventListener('scroll', this.handleScroll)
+    // CORREÇÃO: Sem scroll infinito na página principal - apenas remover listener de clique
     // Remover event listener para clique fora do dropdown
     document.removeEventListener('click', this.handleClickOutside)
   },
@@ -1095,16 +1093,66 @@ export default {
       this.loadSchedules()
     },
 
-    resetFilters() {
+    // NOVA FUNCIONALIDADE: Função para limpar filtros sem recarregar dados
+    clearAllFilters() {
+      console.log('🧹 Limpando todos os filtros silenciosamente...')
       this.currentFilters = {
         status: '',
-        client: '',
         date_from: '',
         date_to: ''
       }
-      console.log('Filtros resetados')
-      // Recarregar agendamentos sem filtros
-      this.loadSchedules()
+      console.log('✅ Filtros limpos:', this.currentFilters)
+    },
+
+    async resetFilters() {
+      console.log('🔄 Limpando filtros e atualizando página...')
+      
+      // Resetar os filtros primeiro
+      this.currentFilters = {
+        status: '',
+        date_from: '',
+        date_to: ''
+      }
+      
+      // Limpar o cache para forçar atualização completa
+      if (window.apiClient && window.apiClient.clearCache) {
+        window.apiClient.clearCache('/schedules')
+        console.log('🗑️ Cache de agendamentos limpo')
+      }
+      
+      // Se está na página de agendamentos, atualizar diretamente o SchedulesList
+      if (this.showSchedulesList && this.$refs.schedulesListRef) {
+        console.log('📄 Atualizando SchedulesList diretamente')
+        this.$refs.schedulesListRef.resetPagination()
+        await this.$refs.schedulesListRef.loadSchedules()
+        this.addNotification('Filtros limpos e lista atualizada', 'success')
+        return
+      }
+      
+      // Para dashboard, usar mesma lógica de carregamento da inicialização
+      console.log('📊 Atualizando dados do dashboard...')
+      this.setLoading(true, 'Atualizando agendamentos...', 'Buscando dados mais recentes')
+      
+      try {
+        const response = await apiClient.request('/schedules', {
+          method: 'GET',
+          params: {
+            limit: 1000,
+            ...this.currentFilters
+          }
+        })
+        
+        this.schedules = response.schedules || []
+        this.pagination.total = response.pagination?.total || 0
+        
+        console.log('✅ Agendamentos atualizados:', this.schedules.length)
+        this.addNotification('Filtros limpos e página atualizada', 'success')
+      } catch (error) {
+        console.error('❌ Erro ao atualizar:', error)
+        this.addNotification('Erro ao atualizar agendamentos', 'error')
+      } finally {
+        this.setLoading(false)
+      }
     },
     // FUNÇÃO SIMPLES - APENAS CARREGA DO LOCALSTORAGE
     loadUserFromStorage() {
@@ -1123,16 +1171,30 @@ export default {
     },
 
     async loadDashboardData() {
+      console.log('🔄 Iniciando loadDashboardData...')
+      console.log('📊 Estado antes de carregar:', {
+        schedulesCount: this.schedules.length,
+        showSchedulesList: this.showSchedulesList,
+        paginationPage: this.pagination.page,
+        paginationLimit: this.pagination.limit
+      })
+      
       const promises = [
         this.loadStats(),
         this.loadRecentActivities(),
         this.loadPendingDeliveries(),
+        this.loadSchedules() // Adicionar carregamento dos agendamentos para a página principal
       ]
       try {
-      await Promise.all(promises)
-        console.log('Dashboard carregado com sucesso!')
+        await Promise.all(promises)
+        console.log('✅ Dashboard carregado com sucesso!')
+        console.log('📊 Estado após carregar dashboard:', {
+          schedulesCount: this.schedules.length,
+          showSchedulesList: this.showSchedulesList,
+          paginationTotal: this.pagination.total
+        })
       } catch (error) {
-        console.error('Erro ao carregar dashboard:', error)
+        console.error('❌ Erro ao carregar dashboard:', error)
         this.addNotification('Erro ao carregar dashboard', 'error')
       }
     },
@@ -1189,19 +1251,102 @@ export default {
     },
 
     handleMenuClick(menuId) {
+      console.log('🔄 Menu clicado:', menuId, '- Saindo de:', this.activeMenu)
+      
+      // NOVA FUNCIONALIDADE: Limpar filtros ao sair das páginas 'Agendamentos' e 'Principal'
+      if (this.activeMenu === 'dashboard' || this.activeMenu === 'agendamento') {
+        console.log('🧹 Limpando filtros ao sair da página:', this.activeMenu)
+        console.log('🧹 Filtros antes da limpeza:', JSON.stringify(this.currentFilters))
+        
+        this.clearAllFilters()
+        
+        // Também limpar filtros do SchedulesList se existir
+        if (this.$refs.schedulesListRef && typeof this.$refs.schedulesListRef.clearFilters === 'function') {
+          console.log('🧹 Limpando filtros do SchedulesList')
+          this.$refs.schedulesListRef.clearFilters()
+        } else {
+          console.log('⚠️ SchedulesList ref não encontrada ou função clearFilters não existe')
+        }
+        
+        console.log('🧹 Filtros após limpeza:', JSON.stringify(this.currentFilters))
+      } else {
+        console.log('ℹ️ Menu anterior não requer limpeza de filtros:', this.activeMenu)
+      }
+      
       this.activeMenu = menuId
-      console.log('Menu clicado:', menuId)
-
       this.showSchedulesList = false
       this.showSettingsPage = false
       this.showXmlUploadPage = false
+      this.showProductsPage = false
 
       switch (menuId) {
         case 'dashboard':
-          this.loadDashboardData()
+          console.log('🔄 ======= CLICOU NO MENU DASHBOARD =======')
+          console.log('📊 Estado atual antes da mudança:', {
+            activeMenu: this.activeMenu,
+            showSchedulesList: this.showSchedulesList,
+            schedulesCount: this.schedules.length,
+            paginationPage: this.pagination.page
+          })
+          
+          console.log('🔄 Atualizando página Principal completamente...')
+          
+          // Limpar o cache para forçar atualização completa
+          if (window.apiClient && window.apiClient.clearCache) {
+            window.apiClient.clearCache('/schedules')
+            window.apiClient.clearCache('/stats')
+            window.apiClient.clearCache('/activities')
+            window.apiClient.clearCache('/deliveries')
+            console.log('🗑️ Cache completo limpo')
+          }
+          
+          // Resetar paginação e limpar lista antes de recarregar
+          console.log('📊 Resetando paginação e lista...')
+          this.pagination.page = 1
+          this.pagination.hasMore = true
+          this.schedules = []
+          
+          // Resetar todos os dados do dashboard
+          this.dashboardStats = {
+            total: 0,
+            agendado: 0,
+            recebido: 0,
+            conferencia: 0,
+            tratativa: 0
+          }
+          
+          console.log('📊 Estado após reset:', {
+            schedulesCount: this.schedules.length,
+            paginationPage: this.pagination.page,
+            showSchedulesList: this.showSchedulesList
+          })
+          
+          // Mostrar loading durante atualização
+          this.setLoading(true, 'Atualizando página Principal...', 'Carregando dados frescos do servidor')
+          
+          // Carregar dados com atualização completa
+          this.loadDashboardData().finally(() => {
+            this.setLoading(false)
+            console.log('📊 Estado FINAL após loadDashboardData:', {
+              schedulesCount: this.schedules.length,
+              showSchedulesList: this.showSchedulesList,
+              paginationTotal: this.pagination.total
+            })
+            this.addNotification('Página Principal atualizada', 'success')
+          })
           break
         case 'agendamento':
           this.showSchedulesList = true
+          
+          // CORREÇÃO: Garantir que SchedulesList carregue dados ao ser exibido
+          this.$nextTick(() => {
+            if (this.$refs.schedulesListRef) {
+              console.log('🔄 Forçando carregamento inicial do SchedulesList')
+              this.$refs.schedulesListRef.resetPagination()
+              this.$refs.schedulesListRef.loadSchedules()
+            }
+          })
+          
           // Se ainda não pré-carregou, mostrar indicação
           if (!this.pagesPreloaded) {
             this.addNotification('🚀 Primeira vez acessando - preparando página...', 'info')
@@ -1212,6 +1357,18 @@ export default {
           if (!this.pagesPreloaded) {
             this.addNotification('🚀 Primeira vez acessando - preparando página...', 'info')
           }
+          break
+        case 'produtos':
+          this.showProductsPage = true
+          if (!this.pagesPreloaded) {
+            this.addNotification('🚀 Primeira vez acessando - preparando página...', 'info')
+          }
+          // Carregar produtos quando a página for ativada
+          this.$nextTick(() => {
+            if (this.$refs.productsPageRef) {
+              this.$refs.productsPageRef.loadProducts()
+            }
+          })
           break
         case 'configuracoes':
           this.showSettingsPage = true
@@ -1286,7 +1443,96 @@ export default {
     },
 
     async refresh() {
-      await this.refreshPageAfterAction('Dados atualizados com sucesso')
+      console.log('🔄 Iniciando atualização manual dos dados...')
+      
+      // Limpar o cache para forçar atualização completa
+      if (window.apiClient && window.apiClient.clearCache) {
+        window.apiClient.clearCache('/schedules')
+        console.log('🗑️ Cache de agendamentos limpo')
+      }
+      
+      // Se está na página de agendamentos, atualizar diretamente o SchedulesList
+      if (this.showSchedulesList && this.$refs.schedulesListRef) {
+        console.log('📄 Atualizando SchedulesList diretamente')
+        this.$refs.schedulesListRef.resetPagination()
+        await this.$refs.schedulesListRef.loadSchedules()
+        this.addNotification('Lista de agendamentos atualizada', 'success')
+        return
+      }
+      
+      // CORREÇÃO: Para dashboard, usar mesma lógica de carregamento da inicialização
+      console.log('📊 Atualizando dados do dashboard...')
+      this.setLoading(true, 'Atualizando agendamentos...', 'Buscando dados mais recentes')
+      
+      try {
+        const response = await apiClient.request('/schedules', {
+          method: 'GET',
+          params: {
+            page: 1,
+            limit: 1000 // CORREÇÃO: Carregar todos os agendamentos no refresh também
+          }
+        });
+        
+        if (response && response.schedules) {
+          console.log('✅ Dados atualizados:', response.schedules.length, 'agendamentos');
+          this.schedules = response.schedules;
+          this.calculateStatsFromData(response.schedules);
+          this.addNotification('Dados atualizados com sucesso', 'success')
+        } else {
+          this.addNotification('Nenhum agendamento encontrado', 'info')
+        }
+      } catch (error) {
+        console.error('❌ Erro ao atualizar dados:', error);
+        this.addNotification('Erro ao atualizar dados', 'error')
+      } finally {
+        this.setLoading(false)
+      }
+    },
+    
+    // CORREÇÃO: Handler para sincronizar dados do SchedulesList com App.vue
+    handleSchedulesFromList(data) {
+      console.log('🔄 Sincronizando dados do SchedulesList com App.vue:', {
+        schedulesCount: data.schedules.length,
+        page: data.pagination.page,
+        isFirstPage: data.pagination.page === 1,
+        currentAppSchedules: this.schedules.length,
+        isLoading: this.loading,
+        schedulesListVisible: this.showSchedulesList
+      })
+      
+      // Só sincronizar quando SchedulesList estiver visível (não no dashboard)
+      if (!this.showSchedulesList) {
+        console.log('📄 SchedulesList não visível - ignorando sincronização')
+        return
+      }
+      
+      // Atualizar a lista do App.vue com os dados do SchedulesList
+      if (data.pagination.page === 1) {
+        // Primeira página - substituir completamente
+        console.log('📄 Substituindo schedules do App.vue (página 1)')
+        this.schedules = data.schedules
+      } else {
+        // Páginas seguintes - adicionar sem duplicatas
+        console.log('📄 Adicionando schedules ao App.vue (página seguinte)')
+        const existingIds = new Set(this.schedules.map(s => s.id))
+        const newSchedules = data.schedules.filter(s => !existingIds.has(s.id))
+        this.schedules = [...this.schedules, ...newSchedules]
+        console.log(`📄 Adicionados ${newSchedules.length} novos agendamentos`)
+      }
+      
+      // Sincronizar paginação
+      this.pagination = {
+        ...this.pagination,
+        ...data.pagination
+      }
+      
+      // Recalcular estatísticas com dados atualizados
+      this.calculateStatsFromData(this.schedules)
+      
+      console.log('✅ App.vue sincronizado com SchedulesList:', {
+        totalSchedules: this.schedules.length,
+        hasMore: this.pagination.hasMore
+      })
     },
     async loadSchedules() {
       if (this.pagination.page === 1) {
@@ -1295,10 +1541,17 @@ export default {
       
       try {
         console.log('Buscando agendamentos...')
+        
+        // CORREÇÃO: Para página Principal, usar limit maior
+        const isDashboardPage = !this.showSchedulesList
+        const limit = isDashboardPage ? 1000 : this.pagination.limit
+        
+        console.log(`📊 Carregando para: ${isDashboardPage ? 'Dashboard' : 'SchedulesList'} - Limit: ${limit}`)
+        
         // Usar o apiClient global com cache
         const requestParams = {
           page: this.pagination.page,
-          limit: this.pagination.limit,
+          limit: limit,
           ...this.currentFilters
         }
         
@@ -1309,17 +1562,33 @@ export default {
           params: requestParams
         })
         
+        console.log('📋 Resposta da API:', {
+          responseExists: !!response,
+          schedulesArray: response?.schedules?.length || 0,
+          pagination: response?.pagination,
+          totalResponse: response?.pagination?.total || 0
+        })
+        
         const newSchedules = response.schedules || []
+        console.log(`📊 Novos agendamentos recebidos: ${newSchedules.length}`)
         
         if (this.pagination.page === 1) {
+          console.log('📄 Primeira página - substituindo lista completa')
           this.schedules = newSchedules
         } else {
+          console.log('📄 Página adicional - adicionando à lista existente')
           this.schedules = [...this.schedules, ...newSchedules]
         }
         
         this.pagination.total = response.pagination?.total || 0
-        this.pagination.hasMore = newSchedules.length === this.pagination.limit && newSchedules.length > 0
-        console.log('Agendamentos carregados:', this.schedules.length)
+        this.pagination.hasMore = newSchedules.length === limit && newSchedules.length > 0
+        
+        console.log('✅ Estado final após loadSchedules:', {
+          schedulesCount: this.schedules.length,
+          paginationTotal: this.pagination.total,
+          hasMore: this.pagination.hasMore,
+          isDashboard: !this.showSchedulesList
+        })
       } catch (error) {
         if (this.pagination.page === 1) {
           this.schedules = []
@@ -1784,6 +2053,20 @@ export default {
     async handleScheduleUpdated(updatedSchedule) {
       console.log('✅ Agendamento atualizado:', updatedSchedule)
       
+      // NOVA FUNCIONALIDADE: Limpar todos os filtros após salvar alterações na NF-e
+      console.log('🧹 Limpando filtros após atualização da NF-e...')
+      console.log('🧹 Filtros antes da limpeza:', JSON.stringify(this.currentFilters))
+      
+      this.clearAllFilters()
+      
+      // Também limpar filtros do SchedulesList se existir
+      if (this.$refs.schedulesListRef && typeof this.$refs.schedulesListRef.clearFilters === 'function') {
+        console.log('🧹 Limpando filtros do SchedulesList após edição')
+        this.$refs.schedulesListRef.clearFilters()
+      }
+      
+      console.log('🧹 Filtros após limpeza:', JSON.stringify(this.currentFilters))
+      
       // Limpar o cache para forçar atualização completa
       if (window.apiClient && window.apiClient.clearCache) {
         window.apiClient.clearCache('/schedules')
@@ -1801,7 +2084,7 @@ export default {
         // Adicionar notificação de sucesso
         this.addNotification('Agendamento atualizado com sucesso', 'success')
         
-        console.log('🔄 Página atualizada completamente após edição')
+        console.log('🔄 Página atualizada completamente após edição com filtros limpos')
       } catch (error) {
         console.error('Erro ao atualizar página:', error)
         this.addNotification('Erro ao atualizar dados', 'error')
@@ -1816,42 +2099,15 @@ export default {
 
     // Método auxiliar para atualização completa após ações
     async refreshPageAfterAction(successMessage) {
-      // Limpar o cache para forçar atualização completa
-      if (window.apiClient && window.apiClient.clearCache) {
-        window.apiClient.clearCache('/schedules')
-        console.log('🗑️ Cache de agendamentos limpo após ação')
+      console.log('🔄 Recarregando página completamente após alteração de status')
+      
+      // Salvar mensagem de sucesso no localStorage para mostrar após reload
+      if (successMessage) {
+        localStorage.setItem('reloadSuccessMessage', successMessage)
       }
       
-      // Resetar paginação para carregar desde o início
-      this.pagination.page = 1
-      this.pagination.hasMore = true
-      
-      // Limpar filtros para carregar todos os agendamentos permitidos
-      this.currentFilters = {
-        status: '',
-        client: '',
-        date_from: '',
-        date_to: '',
-        nfe_number: ''
-      }
-      
-      // Atualização completa
-      this.setLoading(true, 'Atualizando Dados...', 'Aplicando alterações e recarregando informações')
-      this.statsLoading = true
-      
-      try {
-        await this.loadEssentialDataOptimized()
-        if (successMessage) {
-          this.addNotification(successMessage, 'success')
-        }
-        console.log('🔄 Página atualizada completamente após ação')
-      } catch (error) {
-        console.error('Erro ao atualizar página:', error)
-        this.addNotification('Erro ao atualizar dados', 'error')
-      } finally {
-        this.setLoading(false)
-        this.statsLoading = false
-      }
+      // Reload imediato sem delay
+      window.location.reload()
     },
 
     clearSelection() {
@@ -1888,17 +2144,7 @@ export default {
       }
     },
 
-    handleScroll() {
-      // Usar o scroll da página em vez do scroll do container
-      const scrollTop = window.pageYOffset || document.documentElement.scrollTop
-      const scrollHeight = document.documentElement.scrollHeight
-      const clientHeight = window.innerHeight
-      const threshold = 100 // pixels do fim para começar a carregar
-      
-      if (scrollTop + clientHeight >= scrollHeight - threshold) {
-        this.loadMoreSchedules()
-      }
-    },
+    // CORREÇÃO: Método handleScroll removido - sem scroll infinito na página principal
     async acceptSchedules() {
       if (this.selectedSchedules.length === 0) return
       this.setBulkActionLoading(true, 'Aceitando Agendamentos...', 'Processando solicitações selecionadas')
@@ -2330,7 +2576,6 @@ export default {
       console.log('🔄 Resetando filtros')
       this.currentFilters = {
         status: '',
-        client: '',
         date_from: '',
         date_to: '',
       }
@@ -2340,105 +2585,6 @@ export default {
       this.loadSchedules()
     },
 
-    // Carregar clientes disponíveis baseado no cli_access do usuário
-    loadAvailableClients() {
-      try {
-        const userData = localStorage.getItem('user')
-        
-        if (!userData) {
-          return
-        }
-        
-        const user = JSON.parse(userData)
-        
-        // Tratar cli_access se estiver como string
-        let cliAccess = user.cli_access
-        if (typeof cliAccess === 'string' && cliAccess) {
-          try {
-            cliAccess = JSON.parse(cliAccess)
-          } catch (e) {
-            cliAccess = null
-          }
-        }
-        
-        // Se o usuário tem level_access = 0, tem acesso total
-        if (user.level_access === 0) {
-          // Para usuários com acesso total, carregar todos os clientes disponíveis
-          this.loadAllClientsForFilter()
-          return
-        }
-        
-        // Para outros usuários, usar cli_access
-        if (cliAccess && typeof cliAccess === 'object') {
-          const cliAccessEntries = Object.entries(cliAccess)
-          
-          const clients = cliAccessEntries.map(([cnpj, data]) => {
-            return {
-              cnpj: cnpj,
-              name: data.nome || `Cliente ${cnpj}`,
-              number: data.numero || cnpj
-            }
-          })
-          
-          this.availableClients = clients
-        } else {
-          this.availableClients = []
-        }
-      } catch (error) {
-        console.error('❌ Erro ao carregar clientes disponíveis:', error)
-        this.availableClients = []
-      }
-    },
-
-    async loadAllClientsForFilter() {
-      try {
-        console.log('🏢 Carregando todos os clientes para filtro (usuário com acesso total)...')
-        
-        // Usar cache global se disponível e recente (menos de 5 minutos)
-        if (window.globalClientsCache && window.globalClientsCache.clients) {
-          const cacheAge = Date.now() - window.globalClientsCache.loadedAt
-          if (cacheAge < 5 * 60 * 1000) { // 5 minutos
-            console.log('📋 Usando cache de clientes para filtro')
-            this.availableClients = window.globalClientsCache.clients.map(client => ({
-              cnpj: client.cnpj,
-              name: client.name || `Cliente ${client.cnpj}`,
-              number: client.number || client.cnpj
-            }))
-            return
-          }
-        }
-
-        // Se não tem cache, carregar da API
-        const response = await apiClient.request('/clients', {
-          method: 'GET'
-        })
-        
-        if (response && response.data) {
-          const allClients = response.data || []
-          
-          this.availableClients = allClients.map(client => ({
-            cnpj: client.cnpj,
-            name: client.name || `Cliente ${client.cnpj}`,
-            number: client.number || client.cnpj
-          }))
-          
-          // Atualizar cache global
-          window.globalClientsCache = {
-            clients: this.availableClients,
-            loadedAt: Date.now()
-          }
-          
-          console.log(`✅ ${this.availableClients.length} clientes carregados para filtro`)
-        } else {
-          console.warn('⚠️ Resposta da API de clientes não contém dados')
-          this.availableClients = []
-        }
-        
-      } catch (error) {
-        console.error('❌ Erro ao carregar todos os clientes para filtro:', error)
-        this.availableClients = []
-      }
-    },
 
     handleReprocessSuccess(scheduleData) {
       console.log('✅ Reprocessamento bem-sucedido para agendamento:', scheduleData.id);
@@ -2456,9 +2602,6 @@ export default {
         
         // Definir mensagem de carregamento inicial
         this.setLoading(true, 'Carregando Dashboard...', 'Iniciando sistema e carregando dados')
-        
-        // Carregar clientes disponíveis
-        this.loadAvailableClients()
         
         // Carregar dados essenciais
         await this.loadEssentialDataOptimized()
@@ -2495,8 +2638,9 @@ export default {
         this.addNotification('Interface carregada - dados sendo obtidos...', 'info');
       } finally {
         this.statsLoading = false;
-        // Finalizar loading principal após carregar dados reais
+        // CORREÇÃO: Finalizar loading após carregar dados para dashboard
         this.setLoading(false);
+        console.log('✅ Loading do dashboard finalizado!');
       }
     },
     
@@ -2512,7 +2656,6 @@ export default {
       };
       
       this.schedules = [];
-      this.availableClients = [];
       
       console.log('Dados mockados carregados');
     },
@@ -2522,32 +2665,31 @@ export default {
       console.log('=== CARREGANDO DADOS REAIS ===');
       
       try {
-        // Tentar carregar agendamentos
-        console.log('📊 Buscando agendamentos da API...');
+        console.log('📊 Carregando dados para dashboard...');
+        
+        // CORREÇÃO: Para o dashboard inicial, carregar TODOS os dados de uma vez
+        // Isso evita duplicatas e problemas de scroll infinito na página principal
+        this.setLoading(true, 'Carregando agendamentos...', 'Buscando todos os dados');
+        
         const response = await apiClient.request('/schedules', {
           method: 'GET',
           params: {
             page: 1,
-            limit: 50
+            limit: 1000 // Carregar todos os agendamentos de uma vez
           }
         });
         
         if (response && response.schedules) {
-          console.log('✅ Dados reais carregados:', response.schedules.length, 'agendamentos');
+          console.log('✅ Dados carregados para dashboard:', response.schedules.length, 'agendamentos');
           this.schedules = response.schedules;
           this.calculateStatsFromData(response.schedules);
-          
-          // Atualizar mensagem de loading para próxima etapa
-          this.setLoading(true, 'Finalizando...', 'Carregando lista de clientes');
-          
-          // Carregar clientes disponíveis também
-          await this.loadClientsFromAPI();
-          
-          console.log('🎉 Carregamento completo!');
-        } else {
-          console.warn('⚠️ Resposta da API sem dados de agendamentos');
-          this.addNotification('Nenhum agendamento encontrado', 'info');
         }
+        
+        // Carregar clientes disponíveis
+        this.setLoading(true, 'Carregando lista de clientes...', 'Preparando filtros');
+        await this.loadClientsFromAPI();
+        
+        console.log('🎉 Carregamento completo!');
         
       } catch (error) {
         console.error('❌ Erro ao carregar dados reais:', error);

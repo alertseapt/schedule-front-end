@@ -4,7 +4,6 @@
     <NfeSearchBar
       :filters="currentFilters"
       :status-options="statusOptions"
-      :available-clients="availableClients"
       @search-results="handleSearchResults"
       @search-error="handleSearchError"
       @search-start="handleSearchStart"
@@ -79,7 +78,7 @@
             <td>{{ schedule.case_count }}</td>
             <td>
               <span
-                :class="'status-badge ' + getStatusBadge(schedule.status).class"
+                :class="'status-badge ' + getStatusBadge(schedule.status).class + (isEstoqueSemDP(schedule) ? ' missing-dp' : '')"
                 class="status-badge"
               >
                 {{ getStatusBadge(schedule.status).label }}
@@ -190,7 +189,7 @@ export default {
       showBookingModal: false,
       pagination: {
         page: 1,
-        limit: 20,
+        limit: 50, // Aumentado de 20 para 50 para carregar mais agendamentos por vez
         total: 0,
         hasMore: true,
       },
@@ -200,12 +199,9 @@ export default {
       // Filtros
       currentFilters: {
         status: '',
-        client: '',
         date_from: '',
         date_to: '',
-        nfe_number: '',
       },
-      availableClients: [],
       
       // Variáveis para controle de pesquisa
       isSearchActive: false,
@@ -220,11 +216,12 @@ export default {
         Solicitado: { class: 'warning', label: 'Solicitado' },
         Contestado: { class: 'contestado', label: 'Contestado' },
         Agendado: { class: 'primary', label: 'Agendado' },
-        Conferência: { class: 'success', label: 'Conferência' },
-        Recebido: { class: 'success', label: 'Conferência' }, // Compatibilidade com dados antigos
+        'Em conferência': { class: 'success', label: 'Em conferência' },
+        Conferência: { class: 'success', label: 'Em conferência' }, // Compatibilidade com dados antigos
+        Recebido: { class: 'success', label: 'Em conferência' }, // Compatibilidade com dados antigos
         Tratativa: { class: 'danger', label: 'Tratativa' },
-        'Em estoque': { class: 'success', label: 'Em estoque' },
-        'Estoque': { class: 'success', label: 'Em estoque' }, // Compatibilidade com dados antigos
+        'Em estoque': { class: 'estoque', label: 'Em estoque' },
+        'Estoque': { class: 'estoque', label: 'Em estoque' }, // Compatibilidade com dados antigos
         Recusar: { class: 'danger', label: 'Recusar' },
         Cancelar: { class: 'warning', label: 'Cancelar' },
         Recusado: { class: 'dark', label: 'Recusado' },
@@ -286,7 +283,7 @@ export default {
         { value: 'Solicitado', label: 'Solicitado' },
         { value: 'Contestado', label: 'Contestado' },
         { value: 'Agendado', label: 'Agendado' },
-        { value: 'Conferência', label: 'Conferência' },
+        { value: 'Em conferência', label: 'Em conferência' },
         { value: 'Tratativa', label: 'Tratativa' },
         { value: 'Em estoque', label: 'Em estoque' },
         { value: 'Cancelar', label: 'Cancelar' },
@@ -309,30 +306,99 @@ export default {
         console.log('Fazendo requisição para /schedules')
         console.log('Token presente:', !!localStorage.getItem('token'))
 
+        // Filtrar apenas parâmetros com valores não vazios
+        const filteredParams = {}
+        Object.keys(this.currentFilters).forEach(key => {
+          const value = this.currentFilters[key]
+          if (value && value.toString().trim() !== '') {
+            filteredParams[key] = value
+          }
+        })
+        
+        const requestParams = {
+          page: this.pagination.page,
+          limit: this.pagination.limit,
+          ...filteredParams // Aplicar apenas filtros com valores
+        }
+        
         const response = await apiClient.request('/schedules', {
           method: 'GET',
-          params: {
-            page: this.pagination.page,
-            limit: this.pagination.limit,
-            ...this.currentFilters // Aplicar filtros
-          },
+          params: requestParams,
         })
 
         console.log('Resposta recebida:', response)
         const newSchedules = response.schedules || []
+        let uniqueNewSchedules = [] // CORREÇÃO: Declarar no escopo mais amplo
         
         if (this.pagination.page === 1) {
           this.schedules = newSchedules
+          uniqueNewSchedules = newSchedules // Para primeira página, todos são únicos
+          console.log(`📄 Primeira página carregada: ${newSchedules.length} agendamentos`)
+          
+          // CORREÇÃO: Emitir dados para sincronizar com App.vue
+          this.$emit('schedules-loaded', {
+            schedules: newSchedules,
+            pagination: {
+              page: this.pagination.page,
+              total: this.pagination.total,
+              hasMore: this.pagination.hasMore
+            }
+          })
         } else {
-          this.schedules = [...this.schedules, ...newSchedules]
+          // CORREÇÃO: Filtrar duplicatas antes de adicionar
+          const existingIds = new Set(this.schedules.map(s => s.id))
+          uniqueNewSchedules = newSchedules.filter(schedule => !existingIds.has(schedule.id))
+          
+          console.log(`📄 Página ${this.pagination.page}: ${newSchedules.length} recebidos, ${uniqueNewSchedules.length} únicos`)
+          
+          if (uniqueNewSchedules.length > 0) {
+            this.schedules = [...this.schedules, ...uniqueNewSchedules]
+            console.log(`📄 Total de agendamentos após filtro: ${this.schedules.length}`)
+            
+            // CORREÇÃO: Emitir dados atualizados para sincronizar com App.vue
+            this.$emit('schedules-loaded', {
+              schedules: this.schedules,
+              pagination: {
+                page: this.pagination.page,
+                total: this.pagination.total,
+                hasMore: this.pagination.hasMore
+              }
+            })
+          } else {
+            console.log('⚠️ Todos os agendamentos recebidos já existiam - possível fim da lista')
+            // Se não há agendamentos únicos, parar de tentar carregar mais
+            this.pagination.hasMore = false
+          }
         }
         
         this.pagination.total = response.pagination?.total || 0
-        // Se recebeu menos agendamentos que o limite, não há mais dados
-        this.pagination.hasMore = newSchedules.length === this.pagination.limit && newSchedules.length > 0
+        
+        // CORREÇÃO: Lógica melhorada para hasMore
+        if (this.pagination.page === 1) {
+          // Na primeira página, há mais se recebeu exatamente o limite
+          this.pagination.hasMore = newSchedules.length === this.pagination.limit
+        } else {
+          // Nas próximas páginas, há mais se recebeu agendamentos únicos igual ao limite
+          const uniqueCount = uniqueNewSchedules.length
+          this.pagination.hasMore = uniqueCount === this.pagination.limit && uniqueCount > 0
+        }
         
         if (!this.pagination.hasMore && this.pagination.page > 1) {
-          console.log(`📄 Fim da lista: carregados ${newSchedules.length} de ${this.pagination.limit} agendamentos na página ${this.pagination.page}`)
+          console.log(`📄 Fim da lista: carregados ${newSchedules.length} agendamentos na página ${this.pagination.page}`)
+          console.log(`📊 Total de agendamentos únicos: ${this.schedules.length}`)
+        }
+        
+        // CORREÇÃO: Garantir que sempre emite dados na primeira página, mesmo se vazia
+        if (this.pagination.page === 1 && newSchedules.length === 0) {
+          console.log('📄 Primeira página vazia - emitindo dados vazios para sincronização')
+          this.$emit('schedules-loaded', {
+            schedules: [],
+            pagination: {
+              page: 1,
+              total: 0,
+              hasMore: false
+            }
+          })
         }
       } catch (error) {
         console.error('Erro ao carregar agendamentos:', error)
@@ -374,6 +440,18 @@ export default {
         this.schedules = []
         // Em caso de erro, parar de tentar carregar mais
         this.pagination.hasMore = false
+        
+        // CORREÇÃO: Emitir dados vazios mesmo em caso de erro para sincronizar App.vue
+        if (this.pagination.page === 1) {
+          this.$emit('schedules-loaded', {
+            schedules: [],
+            pagination: {
+              page: 1,
+              total: 0,
+              hasMore: false
+            }
+          })
+        }
       } finally {
         if (this.pagination.page === 1) {
           this.loading = false
@@ -412,39 +490,47 @@ export default {
 
     handleScheduleUpdated(updatedSchedule) {
       console.log('✅ Agendamento atualizado:', updatedSchedule)
-      // Recarregar a lista para mostrar as alterações
+      // CORREÇÃO: Resetar paginação para evitar duplicatas ao recarregar
+      this.resetPagination()
       this.loadSchedules()
       this.closeEditModal()
     },
 
     async loadMoreSchedules() {
-      if (this.loadingMore || !this.pagination.hasMore) {
+      // CORREÇÃO: Verificações mais rigorosas para evitar duplicatas
+      if (this.loadingMore || !this.pagination.hasMore || this.loading) {
         console.log('🛑 loadMoreSchedules: bloqueado', { 
           loadingMore: this.loadingMore, 
-          hasMore: this.pagination.hasMore 
+          hasMore: this.pagination.hasMore,
+          loading: this.loading,
+          currentPage: this.pagination.page
         })
         return
       }
       
-      console.log(`📖 Carregando página ${this.pagination.page + 1}...`)
+      // CORREÇÃO: Evitar requisições simultâneas marcando imediatamente como loading
       this.loadingMore = true
       this.pagination.page += 1
       
+      console.log(`📖 Carregando página ${this.pagination.page}...`)
+      
       try {
         await this.loadSchedules()
+        console.log(`✅ Página ${this.pagination.page} carregada com sucesso`)
       } catch (error) {
         console.error('❌ Erro ao carregar mais agendamentos:', error)
         // Se der erro, volta a página anterior e para de tentar
         this.pagination.page -= 1
         this.pagination.hasMore = false
+        console.log(`🔙 Página voltou para ${this.pagination.page} devido ao erro`)
       } finally {
         this.loadingMore = false
-        console.log(`✅ loadingMore finalizado. hasMore: ${this.pagination.hasMore}`)
+        console.log(`✅ loadingMore finalizado. Página atual: ${this.pagination.page}, hasMore: ${this.pagination.hasMore}`)
       }
     },
 
     handleScroll() {
-      // Throttle para melhorar performance
+      // CORREÇÃO: Throttle aprimorado para evitar chamadas duplas
       if (this.scrollTimeout) return
       
       this.scrollTimeout = setTimeout(() => {
@@ -452,15 +538,26 @@ export default {
         const scrollTop = window.pageYOffset || document.documentElement.scrollTop
         const windowHeight = window.innerHeight
         const documentHeight = document.documentElement.scrollHeight
-        const threshold = 200 // pixels do fim para começar a carregar
+        const threshold = 500 // pixels do fim para começar a carregar (aumentado para carregar antes)
         
-        // Verificar se chegou próximo ao fim da página E ainda há mais dados para carregar
-        if (scrollTop + windowHeight >= documentHeight - threshold && this.pagination.hasMore && !this.loadingMore) {
+        // CORREÇÃO: Verificações mais rigorosas antes de carregar
+        const nearEnd = scrollTop + windowHeight >= documentHeight - threshold
+        const canLoad = this.pagination.hasMore && !this.loadingMore && !this.loading
+        
+        if (nearEnd && canLoad && this.schedules.length > 0) {
+          console.log('🔄 Scroll trigger: carregando mais agendamentos...', {
+            scrollTop,
+            windowHeight,
+            documentHeight,
+            threshold,
+            currentPage: this.pagination.page,
+            totalSchedules: this.schedules.length
+          })
           this.loadMoreSchedules()
         }
         
         this.scrollTimeout = null
-      }, 100) // 100ms de throttle
+      }, 100) // Reduzido para 100ms de throttle para resposta mais rápida
     },
 
     getStatusBadge(status) {
@@ -488,6 +585,12 @@ export default {
       } catch (error) {
         return dateString
       }
+    },
+
+    isEstoqueSemDP(schedule) {
+      // Retorna true se o status for "Em estoque" e no_dp for '0' ou null/undefined
+      return (schedule.status === 'Em estoque' || schedule.status === 'Estoque') && 
+             (!schedule.no_dp || schedule.no_dp === '0' || schedule.no_dp === 0)
     },
 
     formatCurrency(value) {
@@ -540,7 +643,7 @@ export default {
 
     canSelectSchedule(schedule) {
       // Verificar se pode selecionar baseado no status e permissões do usuário
-      const allowedStatuses = ['Solicitado', 'Contestado', 'Cancelar', 'Agendado', 'Conferência', 'Recebido', 'Tratativa', 'Em estoque', 'Estoque', 'Marcação']
+      const allowedStatuses = ['Solicitado', 'Contestado', 'Cancelar', 'Agendado', 'Em conferência', 'Conferência', 'Recebido', 'Tratativa', 'Em estoque', 'Estoque', 'Marcação']
       if (!allowedStatuses.includes(schedule.status)) return false
 
       // Para agendamentos de marcação, verificar se usuário tem permissão
@@ -578,6 +681,8 @@ export default {
           message: `${this.selectedSchedules.length} agendamento(s) aceito(s) com sucesso`
         })
         this.clearSelection()
+        // CORREÇÃO: Resetar paginação antes de recarregar
+        this.resetPagination()
         await this.loadSchedules()
       } catch (error) {
         console.error('Erro ao aceitar agendamentos:', error)
@@ -601,6 +706,8 @@ export default {
           message: `Data alterada para ${this.selectedSchedules.length} agendamento(s)`
         })
         this.clearSelection()
+        // CORREÇÃO: Resetar paginação antes de recarregar
+        this.resetPagination()
         await this.loadSchedules()
       } catch (error) {
         console.error('Erro ao alterar data:', error)
@@ -624,6 +731,8 @@ export default {
           message: `Nova data aceita para ${this.selectedSchedules.length} agendamento(s)`
         })
         this.clearSelection()
+        // CORREÇÃO: Resetar paginação antes de recarregar
+        this.resetPagination()
         await this.loadSchedules()
       } catch (error) {
         console.error('Erro ao aceitar nova data:', error)
@@ -647,6 +756,8 @@ export default {
           message: `${this.selectedSchedules.length} agendamento(s) confirmado(s)`
         })
         this.clearSelection()
+        // CORREÇÃO: Resetar paginação antes de recarregar
+        this.resetPagination()
         await this.loadSchedules()
       } catch (error) {
         console.error('Erro ao confirmar agendamentos:', error)
@@ -670,6 +781,8 @@ export default {
           message: `${this.selectedSchedules.length} agendamento(s) reagendado(s)`
         })
         this.clearSelection()
+        // CORREÇÃO: Resetar paginação antes de recarregar
+        this.resetPagination()
         await this.loadSchedules()
       } catch (error) {
         console.error('Erro ao reagendar:', error)
@@ -707,6 +820,8 @@ export default {
           message: message
         })
         this.clearSelection()
+        // CORREÇÃO: Resetar paginação antes de recarregar
+        this.resetPagination()
         await this.loadSchedules()
       } catch (error) {
         console.error('Erro ao cancelar agendamentos:', error)
@@ -742,6 +857,8 @@ export default {
           message: `${this.selectedSchedules.length} marcação(ões) excluída(s) com sucesso`
         })
         this.clearSelection()
+        // CORREÇÃO: Resetar paginação antes de recarregar
+        this.resetPagination()
         await this.loadSchedules()
       } catch (error) {
         console.error('Erro ao excluir marcações:', error)
@@ -763,12 +880,14 @@ export default {
       
       this.bulkActionLoading = true
       try {
-        await this.bulkUpdateStatus('Conferência', 'Agendamento marcado como em conferência')
+        await this.bulkUpdateStatus('Em conferência', 'Agendamento marcado como em conferência')
         this.$emit('notification', {
           type: 'success',
           message: `${this.selectedSchedules.length} agendamento(s) marcado(s) como em conferência`
         })
         this.clearSelection()
+        // CORREÇÃO: Resetar paginação antes de recarregar
+        this.resetPagination()
         await this.loadSchedules()
       } catch (error) {
         console.error('Erro ao marcar como em conferência:', error)
@@ -796,6 +915,8 @@ export default {
           message: `${this.selectedSchedules.length} agendamento(s) marcado(s) como estoque`
         })
         this.clearSelection()
+        // CORREÇÃO: Resetar paginação antes de recarregar
+        this.resetPagination()
         await this.loadSchedules()
       } catch (error) {
         console.error('Erro ao marcar como estoque:', error)
@@ -823,6 +944,8 @@ export default {
           message: `${this.selectedSchedules.length} cancelamento(s) aceito(s)`
         })
         this.clearSelection()
+        // CORREÇÃO: Resetar paginação antes de recarregar
+        this.resetPagination()
         await this.loadSchedules()
       } catch (error) {
         console.error('Erro ao aceitar cancelamento:', error)
@@ -1020,115 +1143,46 @@ export default {
       return formattedDate
     },
 
-    // Métodos de filtros
-    handleFiltersChanged(newFilters) {
-      this.currentFilters = { ...newFilters }
+    // Função auxiliar para resetar paginação
+    resetPagination() {
       this.pagination.page = 1
       this.pagination.hasMore = true
-      this.schedules = [] // Limpar lista atual
+      this.pagination.total = 0
+      this.schedules = []
+      this.loadingMore = false
+      console.log('🔄 Paginação resetada')
+    },
+
+    // Métodos de filtros
+    handleFiltersChanged(newFilters) {
+      console.log('🔍 Filtros alterados:', newFilters)
+      this.currentFilters = { ...newFilters }
+      this.resetPagination()
       this.loadSchedules()
+    },
+
+    // NOVA FUNCIONALIDADE: Limpar filtros sem recarregar dados
+    clearFilters() {
+      console.log('🧹 [SCHEDULESLIST] Limpando filtros silenciosamente...')
+      this.currentFilters = {
+        status: '',
+        date_from: '',
+        date_to: '',
+      }
+      console.log('✅ [SCHEDULESLIST] Filtros limpos:', this.currentFilters)
     },
 
     handleResetFilters() {
-      console.log('🔄 Resetando filtros')
+      console.log('🔍 Resetando filtros')
       this.currentFilters = {
         status: '',
-        client: '',
         date_from: '',
         date_to: '',
-        nfe_number: '',
       }
-      this.pagination.page = 1
-      this.pagination.hasMore = true
-      this.schedules = [] // Limpar lista atual
+      this.resetPagination()
       this.loadSchedules()
     },
 
-    // Carregar clientes disponíveis baseado no cli_access do usuário
-    async loadAvailableClients() {
-      try {
-        const userData = localStorage.getItem('user')
-        
-        if (!userData) {
-          return
-        }
-        
-        const user = JSON.parse(userData)
-        
-        console.log('👤 [CLIENTS] Carregando clientes para usuário:', {
-          user: user.user,
-          level: user.level_access,
-          hasCliAccess: !!user.cli_access
-        })
-        
-        // Tratar cli_access se estiver como string
-        let cliAccess = user.cli_access
-        if (typeof cliAccess === 'string' && cliAccess) {
-          try {
-            cliAccess = JSON.parse(cliAccess)
-          } catch (e) {
-            cliAccess = null
-          }
-        }
-        
-        // Se o usuário tem level_access = 0, tem acesso total
-        if (user.level_access === 0) {
-          console.log('🔓 [CLIENTS] Usuário nível 0 - acesso total')
-          // Para desenvolvedores, carregar clientes dinamicamente dos agendamentos existentes
-          try {
-            const apiClient = window.apiClient
-            const response = await apiClient.request('/schedules', {
-              method: 'GET',
-              params: { page: 1, limit: 100 }
-            })
-            
-            if (response.schedules) {
-              // Extrair clientes únicos dos agendamentos
-              const uniqueClients = new Map()
-              
-              response.schedules.forEach(schedule => {
-                if (schedule.client_cnpj_original && schedule.client) {
-                  uniqueClients.set(schedule.client_cnpj_original, {
-                    cnpj: schedule.client_cnpj_original,
-                    name: schedule.client,
-                    number: schedule.client_cnpj_original
-                  })
-                }
-              })
-              
-              this.availableClients = Array.from(uniqueClients.values())
-              console.log(`✅ [CLIENTS] Carregados ${this.availableClients.length} clientes dinamicamente`)
-            }
-          } catch (error) {
-            console.error('❌ [CLIENTS] Erro ao carregar clientes dinamicamente:', error)
-            this.availableClients = []
-          }
-          return
-        }
-        
-        // Para outros usuários, usar cli_access
-        if (cliAccess && typeof cliAccess === 'object') {
-          const cliAccessEntries = Object.entries(cliAccess)
-          
-          const clients = cliAccessEntries.map(([cnpj, data]) => {
-            return {
-              cnpj: cnpj,
-              name: data.nome || `Cliente ${cnpj}`,
-              number: data.numero || cnpj
-            }
-          })
-          
-          this.availableClients = clients
-          console.log(`✅ [CLIENTS] Carregados ${clients.length} clientes do cli_access`)
-        } else {
-          this.availableClients = []
-          console.log('⚠️ [CLIENTS] Nenhum cli_access encontrado')
-        }
-      } catch (error) {
-        console.error('❌ Erro ao carregar clientes disponíveis:', error)
-        this.availableClients = []
-      }
-    },
 
     // Métodos para agendamentos de marcação
     isBookingSchedule(schedule) {
@@ -1152,7 +1206,7 @@ export default {
       })
       
       // Recarregar a lista de agendamentos
-      this.pagination.page = 1
+      this.resetPagination()
       await this.loadSchedules()
       
       this.closeBookingModal()
@@ -1175,7 +1229,7 @@ export default {
         })
 
         // Recarregar a lista
-        this.pagination.page = 1
+        this.resetPagination()
         await this.loadSchedules()
 
       } catch (error) {
@@ -1245,8 +1299,21 @@ export default {
   },
 
   async mounted() {
-    await this.loadAvailableClients()
-    this.loadSchedules()
+    console.log('📄 SchedulesList montado - iniciando carregamento...')
+    console.log('🔄 CORREÇÃO: SchedulesList vai emitir dados para App.vue via @schedules-loaded')
+    
+    // CORREÇÃO: Garantir que sempre emite dados na inicialização
+    try {
+      await this.loadSchedules()
+      console.log('✅ SchedulesList.mounted(): loadSchedules() concluído')
+    } catch (error) {
+      console.error('❌ SchedulesList.mounted(): erro em loadSchedules():', error)
+      // Mesmo em caso de erro, emitir dados vazios para sincronizar
+      this.$emit('schedules-loaded', {
+        schedules: [],
+        pagination: { page: 1, total: 0, hasMore: false }
+      })
+    }
     
     // Adicionar listener para scroll da página
     window.addEventListener('scroll', this.handleScroll, { passive: true })
@@ -1367,6 +1434,17 @@ export default {
   background-color: #d4edda;
   color: #155724;
   border-color: #28a745;
+}
+
+.status-badge.estoque {
+  background-color: #c8e6c9;
+  color: #1b5e20;
+  border-color: #2e7d32;
+}
+
+.status-badge.missing-dp {
+  border: 2px solid #dc3545 !important;
+  box-shadow: 0 0 5px rgba(220, 53, 69, 0.3);
 }
 
 .status-badge.danger {

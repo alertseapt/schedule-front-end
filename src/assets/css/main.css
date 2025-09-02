@@ -28,11 +28,60 @@
     box-sizing: border-box;
 }
 
+/* Aplicar Poppins globalmente para todos os elementos, exceto ícones */
+:not(.fa):not(.fas):not(.far):not(.fab):not(.fal):not(.fad):not([class*="fa-"]), 
+:not(.fa):not(.fas):not(.far):not(.fab):not(.fal):not(.fad):not([class*="fa-"])::before, 
+:not(.fa):not(.fas):not(.far):not(.fab):not(.fal):not(.fad):not([class*="fa-"])::after {
+    font-family: 'Poppins', sans-serif !important;
+}
+
 body {
     font-family: 'Poppins', sans-serif;
     background-color: var(--gray-50);
     color: var(--gray-800);
     min-height: 100vh;
+}
+
+/* Garantir que todos os elementos de texto usem Poppins */
+h1, h2, h3, h4, h5, h6, 
+p, span, div, a, 
+button, input, textarea, select,
+label, li, td, th,
+.modal, .modal-content, .modal-header, .modal-body, .modal-footer,
+.btn, .form-control, .form-group, .form-label,
+.nav, .nav-link, .navbar, .navbar-brand,
+.card, .card-body, .card-header, .card-title,
+.table, .table td, .table th,
+.alert, .badge, .breadcrumb,
+.pagination, .pagination-item,
+.dropdown, .dropdown-menu, .dropdown-item,
+/* Elementos específicos da aplicação */
+.products-table, .schedule-list, .sidebar,
+.loading-text, .loading-subtext, .empty-state,
+.status-badge, .notification, .toast,
+.search-input, .filter-select, .date-picker,
+/* Elementos gerados dinamicamente */
+.v-tooltip, .v-modal, .v-overlay,
+.vue-component, .vue-wrapper {
+    font-family: 'Poppins', sans-serif !important;
+}
+
+/* Aplicação específica do app - excluindo ícones */
+#app :not(.fa):not(.fas):not(.far):not(.fab):not(.fal):not(.fad):not([class*="fa-"]) {
+    font-family: 'Poppins', sans-serif !important;
+}
+
+/* Garantir que ícones FontAwesome mantenham sua fonte original */
+.fa, .fas, .far, .fab, .fal, .fad, [class*="fa-"] {
+    font-family: "Font Awesome 5 Free", "Font Awesome 5 Pro", "Font Awesome 5 Brands", "FontAwesome" !important;
+}
+
+/* Ícones específicos do FontAwesome */
+i.fa, i.fas, i.far, i.fab, i.fal, i.fad, i[class*="fa-"],
+span.fa, span.fas, span.far, span.fab, span.fal, span.fad, span[class*="fa-"] {
+    font-family: "Font Awesome 5 Free", "Font Awesome 5 Pro", "Font Awesome 5 Brands", "FontAwesome" !important;
+    font-weight: 900 !important;
+    font-style: normal !important;
 }
 
 .container {

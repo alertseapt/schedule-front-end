@@ -68,6 +68,12 @@ export default {
           requiresLevel: 0, // Apenas usuários nível 0
         },
         {
+          id: 'produtos',
+          icon: 'fa fa-boxes',
+          label: 'Produtos',
+          submenu: [],
+        },
+        {
           id: 'configuracoes',
           icon: 'fa fa-cog',
           label: 'Configurações',

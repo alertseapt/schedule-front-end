@@ -43,24 +43,6 @@
           </select>
         </div>
 
-        <div class="filter-group">
-          <label for="client">Cliente/Estoque:</label>
-          <select
-            id="client"
-            v-model="localFilters.client"
-            @change="handleFilterChange"
-            class="form-control"
-          >
-            <option value="">Todos</option>
-            <option
-              v-for="client in availableClients"
-              :key="client.cnpj"
-              :value="client.cnpj"
-            >
-              {{ client.name }}
-            </option>
-          </select>
-        </div>
 
         <div class="filter-group">
           <label for="date-from">Data de:</label>
@@ -119,10 +101,6 @@ export default {
     statusOptions: {
       type: Array,
       default: () => []
-    },
-    availableClients: {
-      type: Array,
-      default: () => []
     }
   },
   
@@ -135,7 +113,6 @@ export default {
       searchHelp: this.showHelp,
       localFilters: { 
         status: '',
-        client: '',
         date_from: '',
         date_to: '',
         ...this.filters 

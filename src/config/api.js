@@ -5,10 +5,27 @@
 // PARA ALTERAR O ENDPOINT DA API:
 // Use o arquivo config.js na raiz do projeto
 
-// Usar configuração dinâmica do config.js se disponível, senão fallback para proxy reverso
-const API_BASE_URL = (typeof window !== 'undefined' && window.API_URL) 
-  ? window.API_URL 
-  : '/api'
+// Detectar ambiente de desenvolvimento e configurar API adequadamente
+function getApiBaseUrl() {
+  // Se window.API_URL estiver definido pelo config.js, usar
+  if (typeof window !== 'undefined' && window.API_URL) {
+    return window.API_URL;
+  }
+  
+  // Para desenvolvimento local (Vite dev server na porta 8000)
+  if (typeof window !== 'undefined') {
+    const isLocalDev = window.location.hostname === 'localhost' && window.location.port === '8000';
+    if (isLocalDev) {
+      // Usar backend de homologação (porta 4001) para desenvolvimento como especificado no config.js
+      return 'http://localhost:4001/api';
+    }
+  }
+  
+  // Fallback para proxy reverso em produção
+  return '/api';
+}
+
+const API_BASE_URL = getApiBaseUrl()
 
 // ========================================
 

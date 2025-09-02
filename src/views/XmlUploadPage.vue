@@ -701,66 +701,113 @@ export default {
               console.log(`   🏢 Emitente: ${emit.xNome} (${emit.CNPJ})`)
               console.log(`   🎯 Destinatário: ${dest.xNome} (${dest.CNPJ})`)
               
-              // Transform products with detailed information
+              // Transform products with detailed information - campos para schema + interface
               if (nfe.det && Array.isArray(nfe.det)) {
-                products = nfe.det.map(item => ({
+                products = nfe.det.map((item, index) => ({
+                  id: index + 1,
+                  // Campos para schema/backend
                   supp_code: item.prod.cProd,
-                  description: item.prod.xProd,
+                  cli_code: item.prod.cProd, // Em agendamentos em lote, usar o mesmo código da NFe
+                  description: item.prod.xProd.length > 100 ? item.prod.xProd.substring(0, 100) : item.prod.xProd,
                   quantity: parseFloat(item.prod.qCom) || 0,
                   unit_value: parseFloat(item.prod.vUnCom) || 0,
+                  latest_into_case: 1,
+                  // Campos adicionais para interface
+                  supplier_code: item.prod.cProd,
+                  client_code: item.prod.cProd,
+                  supplier_description: item.prod.xProd,
+                  client_description: item.prod.xProd,
+                  code: item.prod.cProd,
                   total_value: parseFloat(item.prod.vProd) || 0,
                   unit: item.prod.uCom || 'UN',
-                  ncm: item.prod.NCM || '',
-                  cfop: item.prod.CFOP || '',
-                  cli_code: '', // Will be populated during integration
-                  latest_into_case: 1
+                  ean_code: item.prod.cEAN || ''
                 }))
               } else if (nfe.det) {
                 // Single product
                 products.push({
+                  id: 1,
+                  // Campos para schema/backend
                   supp_code: nfe.det.prod.cProd,
-                  description: nfe.det.prod.xProd,
+                  cli_code: nfe.det.prod.cProd, // Em agendamentos em lote, usar o mesmo código da NFe
+                  description: nfe.det.prod.xProd.length > 100 ? nfe.det.prod.xProd.substring(0, 100) : nfe.det.prod.xProd,
                   quantity: parseFloat(nfe.det.prod.qCom) || 0,
                   unit_value: parseFloat(nfe.det.prod.vUnCom) || 0,
+                  latest_into_case: 1,
+                  // Campos adicionais para interface
+                  supplier_code: nfe.det.prod.cProd,
+                  client_code: nfe.det.prod.cProd,
+                  supplier_description: nfe.det.prod.xProd,
+                  client_description: nfe.det.prod.xProd,
+                  code: nfe.det.prod.cProd,
                   total_value: parseFloat(nfe.det.prod.vProd) || 0,
                   unit: nfe.det.prod.uCom || 'UN',
-                  ncm: nfe.det.prod.NCM || '',
-                  cfop: nfe.det.prod.CFOP || '',
-                  cli_code: '',
-                  latest_into_case: 1
+                  ean_code: nfe.det.prod.cEAN || ''
                 })
               }
               
-              const createPayload = {
-                nfe_data: {
-                  number: ide.nNF,
-                  nfe_key: parsedData.nfe_key || ide.Id?.replace('NFe', '') || '',
-                  client_cnpj: this.selectedClient,
-                  supplier_cnpj: emit.CNPJ,
-                  supplier_name: emit.xNome,
-                  case_count: 0,
-                  date: this.receiptDate,
-                  stock_location: this.selectedClientData?.name || '',
-                  products: products,
-                  info: {
-                    ...parsedData.data,
-                    client_number: this.selectedClientData?.numero,
-                    stock_location: this.selectedClientData?.name,
-                    total: nfe.total || {},
-                    emit: emit,
-                    dest: dest,
-                    ide: ide
+              // Calcular volumes (case_count) somando as quantidades dos produtos
+              const totalQuantity = products.reduce((sum, product) => sum + (product.quantity || 0), 0);
+              
+              // Construir nfeData como o ScheduleCreationModal faz
+              const nfeData = {
+                number: ide.nNF,
+                nfe_key: parsedData.nfe_key || ide.Id?.replace('NFe', '') || '',
+                client_cnpj: this.selectedClient,
+                client_name: dest.xNome || '',
+                supplier_cnpj: emit.CNPJ,
+                supplier_name: emit.xNome.length > 50 ? emit.xNome.substring(0, 50) : emit.xNome,
+                case_count: totalQuantity,
+                date: this.receiptDate,
+                qt_prod: totalQuantity,
+                stock_location: this.selectedClientData?.name || '',
+                // Dados completos da NFe para referência
+                total: nfe.total || {},
+                emit: emit,
+                dest: dest,
+                ide: ide,
+                det: nfe.det
+              }
+
+              // Construir info object igual ao ScheduleCreationModal
+              const infoObject = {
+                ...nfeData,
+                products: products,
+                created_by: this.$store?.getters?.currentUser?.user || 'Sistema',
+                created_at: new Date().toISOString(),
+                type: 'nfe_schedule',
+                // Dados adicionais para compatibilidade
+                client_number: this.selectedClientData?.numero,
+                nfeProc: {
+                  NFe: {
+                    infNFe: {
+                      ...nfe,
+                      det: nfe.det
+                    }
                   }
                 }
               }
+
+              // Usar a mesma estrutura do ScheduleCreationModal (agendamento unitário)
+              const createPayload = {
+                number: ide.nNF,
+                nfe_key: parsedData.nfe_key || ide.Id?.replace('NFe', '') || '',
+                client: this.selectedClient, // Usar 'client' em vez de 'client_cnpj' como no unitário
+                case_count: totalQuantity,
+                date: this.receiptDate,
+                status: 'Solicitado',
+                supplier: emit.xNome.length > 50 ? emit.xNome.substring(0, 50) : emit.xNome,
+                qt_prod: totalQuantity,
+                info: infoObject, // Usar a mesma estrutura do ScheduleCreationModal
+                is_booking: false
+              }
               
-              console.log(`📦 Payload para criação do agendamento:`)
+              console.log(`📦 Payload para criação do agendamento (estrutura unificada):`)
               console.log(`   📦 Produtos: ${products.length} item(s)`)
-              console.log(`   📅 Data: ${createPayload.nfe_data.date}`)
-              console.log(`   🏢 Cliente: ${createPayload.nfe_data.client_cnpj}`)
-              console.log(`   🔧 Enviando: POST /schedules/create-with-products`)
+              console.log(`   📅 Data: ${createPayload.date}`)
+              console.log(`   🏢 Cliente: ${createPayload.client}`)
+              console.log(`   🔧 Enviando: POST /schedules (mesmo endpoint do agendamento unitário)`)
               
-              const createResponse = await this.$http.post('/schedules/create-with-products', createPayload, {
+              const createResponse = await this.$http.post('/schedules', createPayload, {
                 headers: {
                   'Content-Type': 'application/json',
                   'Authorization': `Bearer ${token}`
@@ -768,7 +815,7 @@ export default {
               })
               
               const newScheduleId = createResponse.data.schedule.id
-              console.log(`✅ Agendamento criado com sucesso! ID: ${newScheduleId}`)
+              console.log(`✅ Agendamento criado com sucesso! ID: ${newScheduleId} (usando endpoint unificado)`)
               
               // Armazenar dados do agendamento criado para integração
               createdSchedules.push({

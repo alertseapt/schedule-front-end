@@ -1,5 +1,12 @@
 /* Vue.js Components Styles */
 
+/* Garantir Poppins em todos os componentes Vue */
+.v-enter-active, .v-leave-active,
+.loading-screen, .loading-spinner,
+.modal, .tooltip, .dropdown {
+    font-family: 'Poppins', sans-serif !important;
+}
+
 /* Loading Screen */
 .loading-screen {
     position: fixed;

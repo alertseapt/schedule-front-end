@@ -243,15 +243,38 @@
         <div class="products-section">
           <div class="products-header">
             <h4>Produtos da NFe</h4>
-            <p class="products-hint">
-              <i class="fas fa-info-circle"></i>
-              Em zoom alto, use o scroll horizontal para ver todas as colunas
-            </p>
+          </div>
+          <div class="products-controls">
+            <div class="checkbox-controls">
+              <label class="master-checkbox">
+                <input 
+                  type="checkbox" 
+                  v-model="selectAllProducts" 
+                  @change="toggleAllProducts"
+                />
+                Marcar todos
+              </label>
+              <button 
+                type="button" 
+                class="btn btn-sm btn-outline-secondary invert-btn"
+                @click="invertProductSelection"
+              >
+                <i class="fas fa-random"></i>
+                Inverter seleção
+              </button>
+              <span class="products-hint">
+                <i class="fas fa-info-circle"></i>
+                Produtos marcados usarão código e descrição do fornecedor automaticamente
+              </span>
+            </div>
           </div>
           <div class="products-table-container">
             <table class="products-table">
               <thead>
                 <tr>
+                  <th width="50">
+                    <i class="fas fa-check-square" title="Usar dados do fornecedor"></i>
+                  </th>
                   <th>Cód. Forn.</th>
                   <th>
                     Cód. Venda
@@ -282,8 +305,22 @@
                 <tr
                   v-for="product in products"
                   :key="product.id"
-                  :class="{ 'product-locked': product.isLocked }"
+                  :class="{ 
+                    'product-locked': product.isLocked, 
+                    'product-use-supplier': product.useSupplierData 
+                  }"
                 >
+                  <td class="checkbox-cell">
+                    <label class="product-checkbox">
+                      <input 
+                        type="checkbox" 
+                        v-model="product.useSupplierData"
+                        @change="toggleProductSupplierData(product)"
+                        :disabled="product.isLocked"
+                      />
+                      <span class="checkmark-small"></span>
+                    </label>
+                  </td>
                   <td :title="product.supplier_code">
                     <strong>{{ product.supplier_code }}</strong>
                     <i v-if="product.isLocked" class="fas fa-lock product-lock-icon" title="Produto já cadastrado - campos bloqueados"></i>
@@ -291,12 +328,13 @@
                   <td>
                     <input
                       v-model="product.client_code"
-                      :disabled="product.isLocked"
+                      :disabled="product.isLocked || product.useSupplierData"
                       @change="updateProduct(product)"
                       @paste="handlePaste($event, product, 'client_code')"
                       class="form-control form-control-sm"
                       :data-row="products.indexOf(product)"
-                      :data-col="1"
+                      :data-col="2"
+                      :placeholder="product.useSupplierData ? product.supplier_code : ''"
                     />
                   </td>
                   <td :title="product.supplier_description" class="description-cell">
@@ -305,12 +343,13 @@
                   <td>
                     <input
                       v-model="product.client_description"
-                      :disabled="product.isLocked"
+                      :disabled="product.isLocked || product.useSupplierData"
                       @change="updateProduct(product)"
                       @paste="handlePaste($event, product, 'client_description')"
                       class="form-control form-control-sm"
                       :data-row="products.indexOf(product)"
-                      :data-col="3"
+                      :data-col="4"
+                      :placeholder="product.useSupplierData ? product.supplier_description : ''"
                     />
                   </td>
                   <td>{{ product.quantity }} {{ product.unit }}</td>
@@ -333,7 +372,7 @@
                       class="form-control form-control-sm"
                       placeholder="Código EAN"
                       :data-row="products.indexOf(product)"
-                      :data-col="8"
+                      :data-col="9"
                     />
                   </td>
                 </tr>
@@ -437,6 +476,7 @@ export default {
       loadingClients: false,
       scheduledDate: '',
       loadingPrefill: false, // Novo estado para loading de pré-preenchimento
+      selectAllProducts: false, // Controla o checkbox master
     }
   },
 
@@ -458,9 +498,29 @@ export default {
     },
 
     canCreateSchedule() {
-      return (
-        this.products.length > 0 && this.selectedClient && this.scheduledDate
-      )
+      if (!(this.products.length > 0 && this.selectedClient && this.scheduledDate)) {
+        return false
+      }
+      
+      // Verificar se todos os produtos não bloqueados têm os campos obrigatórios preenchidos
+      const unlockedProducts = this.products.filter(p => !p.isLocked)
+      
+      for (const product of unlockedProducts) {
+        // Se o produto usa dados do fornecedor, não precisa validar os campos editáveis
+        if (product.useSupplierData) {
+          continue
+        }
+        
+        // Se não usa dados do fornecedor, os campos client_code e client_description são obrigatórios
+        if (!product.client_code || !product.client_code.trim()) {
+          return false
+        }
+        if (!product.client_description || !product.client_description.trim()) {
+          return false
+        }
+      }
+      
+      return true
     },
 
     stepClasses() {
@@ -760,7 +820,8 @@ export default {
               prod.querySelector('vProd')?.textContent || '0'
             ),
             factor: 1, // Valor padrão para fator
-            isLocked: false // Inicialmente não bloqueado
+            isLocked: false, // Inicialmente não bloqueado
+            useSupplierData: false // Inicialmente desmarcado - usuário deve preencher dados
           })
         }
       })
@@ -1101,6 +1162,64 @@ export default {
     closeProductEditModal() {
       this.showProductEditModal = false
       this.selectedProduct = null
+    },
+
+    // Métodos para controle de checkbox dos produtos
+    toggleProductSupplierData(product) {
+      if (product.useSupplierData) {
+        // Quando marcado, limpar os campos editáveis e usar dados do fornecedor
+        product.client_code = ''
+        product.client_description = ''
+      } else {
+        // Quando desmarcado, os campos ficam vazios para o usuário preencher
+        // Não fazer nada, deixar os campos como estão
+      }
+      this.updateProduct(product)
+      this.updateSelectAllState()
+    },
+
+    toggleAllProducts() {
+      const newState = this.selectAllProducts
+      this.products.forEach(product => {
+        if (!product.isLocked) { // Não alterar produtos já bloqueados
+          product.useSupplierData = newState
+          if (newState) {
+            // Limpar campos quando marcar para usar dados do fornecedor
+            product.client_code = ''
+            product.client_description = ''
+          }
+        }
+      })
+      this.forceReactiveUpdate()
+    },
+
+    invertProductSelection() {
+      this.products.forEach(product => {
+        if (!product.isLocked) { // Não alterar produtos já bloqueados
+          product.useSupplierData = !product.useSupplierData
+          if (product.useSupplierData) {
+            // Limpar campos quando marcar para usar dados do fornecedor
+            product.client_code = ''
+            product.client_description = ''
+          }
+        }
+      })
+      this.updateSelectAllState()
+      this.forceReactiveUpdate()
+    },
+
+    updateSelectAllState() {
+      const unlockedProducts = this.products.filter(p => !p.isLocked)
+      const selectedCount = unlockedProducts.filter(p => p.useSupplierData).length
+      
+      if (selectedCount === 0) {
+        this.selectAllProducts = false
+      } else if (selectedCount === unlockedProducts.length) {
+        this.selectAllProducts = true
+      } else {
+        // Estado intermediário - pode manter como false ou implementar estado indeterminado
+        this.selectAllProducts = false
+      }
     },
 
     async openClientSelectionModal() {
@@ -1515,8 +1634,8 @@ export default {
           date: this.nfeData.date,
           qt_prod: this.nfeData.qt_prod,
           
-          // Produtos editados pelo usuário
-          products: this.products,
+          // Produtos editados pelo usuário (aplicando lógica de dados do fornecedor)
+          products: this.processProductsForSubmission(),
           
           // Metadados de criação (manter do agendamento efetivado)
           created_by: this.bookingToEffectivate?.created_by || currentUser?.user || 'Sistema',
@@ -1534,12 +1653,29 @@ export default {
         // Para criação normal: usar estrutura padrão
         return {
           ...this.nfeData,
-          products: this.products,
+          products: this.processProductsForSubmission(),
           created_by: currentUser?.user || 'Sistema',
           created_at: new Date().toISOString(),
           type: 'nfe_schedule'
         }
       }
+    },
+
+    processProductsForSubmission() {
+      return this.products.map(product => {
+        const processedProduct = { ...product }
+        
+        // Se o produto está marcado para usar dados do fornecedor
+        if (product.useSupplierData) {
+          processedProduct.client_code = product.supplier_code
+          processedProduct.client_description = product.supplier_description
+        }
+        
+        // Remover propriedades de controle que não devem ir para a API
+        delete processedProduct.useSupplierData
+        
+        return processedProduct
+      })
     },
 
     buildHistoricObject() {
@@ -1960,32 +2096,7 @@ export default {
 }
 
 /* Definir larguras específicas para cada coluna */
-.products-table th:nth-child(1),
-.products-table td:nth-child(1) { width: 12%; min-width: 80px; }  /* Cód. Forn. */
-
-.products-table th:nth-child(2),
-.products-table td:nth-child(2) { width: 12%; min-width: 80px; }  /* Cód. Venda */
-
-.products-table th:nth-child(3),
-.products-table td:nth-child(3) { width: 25%; min-width: 150px; } /* Descrição Fornecedor */
-
-.products-table th:nth-child(4),
-.products-table td:nth-child(4) { width: 20%; min-width: 120px; } /* Descrição Venda */
-
-.products-table th:nth-child(5),
-.products-table td:nth-child(5) { width: 8%; min-width: 60px; }  /* Quant. */
-
-.products-table th:nth-child(6),
-.products-table td:nth-child(6) { width: 7%; min-width: 50px; }  /* Fator */
-
-.products-table th:nth-child(7),
-.products-table td:nth-child(7) { width: 8%; min-width: 70px; }  /* Valor Un. */
-
-.products-table th:nth-child(8),
-.products-table td:nth-child(8) { width: 8%; min-width: 70px; }  /* Valor Total */
-
-.products-table th:nth-child(9),
-.products-table td:nth-child(9) { width: 10%; min-width: 80px; } /* Código EAN */
+/* Larguras das colunas são definidas abaixo com a nova estrutura que inclui checkbox */
 
 /* Estilo para células de descrição expansível */
 .description-cell {
@@ -2215,6 +2326,164 @@ export default {
   margin-left: 4px;
   title: "Produto já cadastrado - campos bloqueados";
 }
+
+/* Estilo para produtos que usam dados do fornecedor */
+.products-table tr.product-use-supplier {
+  background-color: #e6f3ff !important; /* Azul claro */
+  border-left: 4px solid #007bff !important; /* Azul */
+}
+
+/* Inputs dos produtos que usam dados do fornecedor ficam com a mesma cor de fundo */
+.products-table tr.product-use-supplier input.form-control-sm {
+  background-color: #e6f3ff !important; /* Mesmo azul claro da linha */
+  border-color: #b8daff !important; /* Borda azul mais suave */
+  color: #495057 !important; /* Texto padrão */
+}
+
+.products-table tr.product-use-supplier input.form-control-sm:focus {
+  background-color: #e6f3ff !important; /* Mantém o azul mesmo em foco */
+  border-color: #007bff !important; /* Borda azul mais forte no foco */
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25) !important;
+}
+
+/* Controles de checkbox dos produtos */
+.products-controls {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  position: relative;
+}
+
+.checkbox-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.checkbox-controls .products-hint {
+  color: #6c757d;
+  font-size: 0.875rem;
+  font-style: italic;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+
+.master-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  color: #333;
+  cursor: pointer;
+  user-select: none;
+}
+
+.master-checkbox input[type="checkbox"] {
+  margin: 0;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.invert-btn {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.875rem;
+  border-radius: 4px;
+  border: 1px solid #6c757d;
+  background-color: transparent;
+  color: #6c757d;
+  transition: all 0.2s ease;
+}
+
+.invert-btn:hover {
+  background-color: #6c757d;
+  color: white;
+  border-color: #6c757d;
+}
+
+/* Checkbox individual dos produtos */
+.checkbox-cell {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.product-checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.product-checkbox input[type="checkbox"] {
+  display: none;
+}
+
+.checkmark-small {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #007bff;
+  border-radius: 3px;
+  background-color: #fff;
+  transition: all 0.2s ease;
+}
+
+.product-checkbox input[type="checkbox"]:checked + .checkmark-small {
+  background-color: #007bff;
+  border-color: #007bff;
+}
+
+.product-checkbox input[type="checkbox"]:checked + .checkmark-small::after {
+  content: '✓';
+  color: white;
+  font-size: 10px;
+  font-weight: bold;
+}
+
+.product-checkbox input[type="checkbox"]:disabled + .checkmark-small {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Atualizar larguras das colunas para acomodar o checkbox */
+.products-table th:nth-child(1),
+.products-table td:nth-child(1) { width: 5%; min-width: 50px; }  /* Checkbox */
+
+.products-table th:nth-child(2),
+.products-table td:nth-child(2) { width: 12%; min-width: 80px; }  /* Cód. Forn. */
+
+.products-table th:nth-child(3),
+.products-table td:nth-child(3) { width: 12%; min-width: 80px; }  /* Cód. Venda */
+
+.products-table th:nth-child(4),
+.products-table td:nth-child(4) { width: 24%; min-width: 150px; } /* Descrição Fornecedor */
+
+.products-table th:nth-child(5),
+.products-table td:nth-child(5) { width: 19%; min-width: 120px; } /* Descrição Venda */
+
+.products-table th:nth-child(6),
+.products-table td:nth-child(6) { width: 8%; min-width: 60px; }  /* Quant. */
+
+.products-table th:nth-child(7),
+.products-table td:nth-child(7) { width: 7%; min-width: 50px; }  /* Fator */
+
+.products-table th:nth-child(8),
+.products-table td:nth-child(8) { width: 7%; min-width: 70px; }  /* Valor Un. */
+
+.products-table th:nth-child(9),
+.products-table td:nth-child(9) { width: 7%; min-width: 70px; }  /* Valor Total */
+
+.products-table th:nth-child(10),
+.products-table td:nth-child(10) { width: 9%; min-width: 80px; } /* Código EAN */
 
 /* Tela de carregamento do pré-preenchimento */
 .prefill-loading {
