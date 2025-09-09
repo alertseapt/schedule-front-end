@@ -1,7 +1,7 @@
 {
   "name": "logireceive-frontend",
-  "version": "1.0.0",
-  "description": "Sistema de Recebimento de Mercadorias - LogiReceive Frontend",
+  "version": "0.5.0",
+  "description": "Hub de Agendamentos - LogiReceive Frontend",
   "type": "module",
   "scripts": {
     "dev": "vite",

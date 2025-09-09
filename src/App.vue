@@ -35,6 +35,10 @@
             
             <!-- Dropdown Menu -->
             <div v-if="showUserDropdown" class="user-dropdown">
+              <div class="dropdown-item" @click="handleSettingsClick">
+                <i class="fas fa-cog"></i>
+                Configurações
+              </div>
               <div class="dropdown-item" @click="handleLogout">
                 <i class="fas fa-sign-out-alt"></i>
                 Sair
@@ -44,7 +48,7 @@
         </div>
 
         <!-- Dashboard Content -->
-        <div v-show="!showSchedulesList && !showSettingsPage && !showXmlUploadPage && !showProductsPage" class="content-area">
+        <div v-show="!showSchedulesList && !showSettingsPage && !showXmlUploadPage && !showProductsPage && !showAdminPage && !showHelpPage && !showVersionPage" class="content-area">
           <!-- Tabela de Agendamentos (transferida de SchedulesList.vue) -->
           <div class="schedules-list">
             <!-- Header -->
@@ -66,10 +70,10 @@
                   class="btn btn-outline-primary"
                   @click="openBookingModal"
                   :disabled="loading"
-                  title="Criar agendamento de marcação"
+                  title="Criar agendamento de agendamento prévio"
                 >
                   <i class="fas fa-calendar-plus"></i>
-                  Marcação
+                  Agendamento Prévio
                 </button>
                 <button
                   class="btn btn-outline-primary"
@@ -235,7 +239,7 @@
                 </div>
                 
                 <!-- Actions for Solicitado status -->
-                <div v-if="selectedScheduleStatuses[0] === 'Solicitado' && userLevel !== 1" class="solicitado-actions">
+                <div v-if="selectedScheduleStatuses[0] === 'Solicitado' && (userLevel === 0 || userLevel === 1)" class="solicitado-actions">
                   <button class="btn btn-success action-btn" @click="acceptSchedules" :disabled="bulkActionLoading">
                     <i class="fas fa-check"></i> Aceitar Agendamento
                   </button>
@@ -247,22 +251,22 @@
                   </div>
                 </div>
                 
-                <!-- Actions for Agendado status (non-level 1 users can mark as received) -->
-                <div v-if="selectedScheduleStatuses[0] === 'Agendado' && userLevel !== 1" class="agendado-actions">
+                <!-- Actions for Agendado status -->
+                <div v-if="selectedScheduleStatuses[0] === 'Agendado' && (userLevel === 0 || userLevel === 1)" class="agendado-actions">
                   <button class="btn btn-success action-btn" @click="markAsReceived" :disabled="bulkActionLoading">
                     <i class="fas fa-check-circle"></i> Marcar como Em conferência
                   </button>
                 </div>
                 
-                <!-- Actions for Conferência status (non-level 1 users can mark as Em estoque) -->
-                <div v-if="(selectedScheduleStatuses[0] === 'Conferência' || selectedScheduleStatuses[0] === 'Recebido') && userLevel !== 1" class="conferencia-actions">
+                <!-- Actions for Conferência status -->
+                <div v-if="(selectedScheduleStatuses[0] === 'Conferência' || selectedScheduleStatuses[0] === 'Recebido') && (userLevel === 0 || userLevel === 1)" class="conferencia-actions">
                   <button class="btn btn-info action-btn" @click="markAsEmEstoque" :disabled="bulkActionLoading">
                     <i class="fas fa-warehouse"></i> Marcar como Em estoque
                   </button>
                 </div>
                 
-                <!-- Actions for Cancelar status (non-level 1 users can accept cancellation requests from level 1) -->
-                <div v-if="selectedScheduleStatuses[0] === 'Cancelar' && userLevel !== 1" class="cancelar-actions">
+                <!-- Actions for Cancelar status -->
+                <div v-if="selectedScheduleStatuses[0] === 'Cancelar' && (userLevel === 0)" class="cancelar-actions">
                   <button class="btn btn-danger action-btn btn-accept-cancel" @click="acceptCancellation" :disabled="bulkActionLoading">
                     <i class="fas fa-times-circle"></i> Aceitar Cancelamento
                   </button>
@@ -273,7 +277,7 @@
                 <div v-if="canEffectivateBooking" class="effectivate-actions">
                   <button class="btn btn-success action-btn" @click="effectivateBooking" :disabled="bulkActionLoading">
                     <i class="fas fa-check-circle"></i>
-                    Efetivar Marcação
+                    Efetivar Agendamento Prévio
                   </button>
                 </div>
                 
@@ -314,7 +318,13 @@
                   <thead>
                     <tr>
                       <th style="width: 50px;">
-                        
+                        <input 
+                          type="checkbox" 
+                          @change="toggleSelectAll" 
+                          :checked="isAllSelected"
+                          :indeterminate="isSomeSelected"
+                          title="Selecionar todos"
+                        >
                       </th>
                       <th>N° NF-e</th>
                       <th>Cliente</th>
@@ -325,9 +335,24 @@
                     </tr>
                   </thead>
                   <tbody>
-                    <tr v-for="schedule in displayedSchedules" :key="schedule.id" :class="{ 'booking-row': schedule.is_booking === true || schedule.is_booking === 1 }">
-                      <td>
-                        <input type="checkbox" :value="schedule.id" v-model="selectedSchedules" @change="onScheduleSelect" :disabled="!canSelectSchedule(schedule)" />
+                    <tr 
+                      v-for="schedule in displayedSchedules" 
+                      :key="schedule.id" 
+                      :class="{ 
+                        'booking-row': schedule.is_booking === true || schedule.is_booking === 1,
+                        'selected-row': selectedSchedules.includes(schedule.id),
+                        'clickable-row': canSelectSchedule(schedule)
+                      }"
+                      @click="toggleRowSelection(schedule.id, $event)"
+                    >
+                      <td class="checkbox-column" @click.stop>
+                        <input 
+                          type="checkbox" 
+                          :value="schedule.id" 
+                          v-model="selectedSchedules" 
+                          @change="onScheduleSelect" 
+                          :disabled="!canSelectSchedule(schedule)" 
+                        />
                       </td>
                       <td>{{ schedule.number }}</td>
                       <td>{{ schedule.client }}</td>
@@ -338,7 +363,7 @@
                           {{ getStatusBadge(schedule.status).label }}
                         </span>
                       </td>
-                      <td>
+                      <td @click.stop>
                         <div class="action-buttons">
                           <button class="btn btn-sm btn-outline-primary" @click="openInfoModal(schedule)" title="Mais informações">
                             <i class="fas fa-info-circle"></i>
@@ -414,6 +439,30 @@
             @notification="addNotification"
           > </ProductsPage>
         </div>
+
+        <!-- Admin Page -->
+        <div v-show="showAdminPage" class="content-area">
+          <AdminPage 
+            ref="adminPageRef"
+            @notification="addNotification"
+          />
+        </div>
+
+        <!-- Help Page -->
+        <div v-show="showHelpPage" class="content-area">
+          <HelpPage 
+            ref="helpPageRef"
+            @notification="addNotification"
+          />
+        </div>
+
+        <!-- Version Page -->
+        <div v-show="showVersionPage" class="content-area">
+          <VersionPage 
+            ref="versionPageRef"
+            @notification="addNotification"
+          />
+        </div>
       </main>
     </div>
 
@@ -454,6 +503,9 @@ import CorpemTxtGenerator from './components/CorpemTxtGenerator.vue'
 import SettingsPage from './views/SettingsPage.vue'
 import XmlUploadPage from './views/XmlUploadPage.vue'
 import ProductsPage from './views/ProductsPage.vue'
+import AdminPage from './views/AdminPage.vue'
+import HelpPage from './views/HelpPage.vue'
+import VersionPage from './views/VersionPage.vue'
 import { checkPermission, checkUserLevel } from './utils/permissions.js'
 import { BASE_URL } from './config/api.js'
 import apiService from './services/api.js'
@@ -719,6 +771,9 @@ export default {
     SettingsPage,
     XmlUploadPage,
     ProductsPage,
+    AdminPage,
+    HelpPage,
+    VersionPage,
   },
 
   data() {
@@ -732,6 +787,9 @@ export default {
       showSettingsPage: false,
       showXmlUploadPage: false,
       showProductsPage: false,
+      showAdminPage: false,
+      showHelpPage: false,
+      showVersionPage: false,
       
       // Pre-loading control
       pagesPreloaded: false,
@@ -814,6 +872,18 @@ export default {
     selectedScheduleStatuses() {
       const selected = (this.schedules || []).filter(s => (this.selectedSchedules || []).includes(s.id))
       return [...new Set(selected.map(s => s.status))]
+    },
+
+    // Propriedades para seleção de checkbox master
+    isAllSelected() {
+      const selectableSchedules = this.displayedSchedules.filter(schedule => this.canSelectSchedule(schedule))
+      return selectableSchedules.length > 0 && selectableSchedules.every(schedule => this.selectedSchedules.includes(schedule.id))
+    },
+
+    isSomeSelected() {
+      const selectableSchedules = this.displayedSchedules.filter(schedule => this.canSelectSchedule(schedule))
+      const selectedCount = selectableSchedules.filter(schedule => this.selectedSchedules.includes(schedule.id)).length
+      return selectedCount > 0 && selectedCount < selectableSchedules.length
     },
     cancelRequestedBy() {
       if (this.selectedSchedules.length === 0) return 'administrador'
@@ -1278,6 +1348,9 @@ export default {
       this.showSettingsPage = false
       this.showXmlUploadPage = false
       this.showProductsPage = false
+      this.showAdminPage = false
+      this.showHelpPage = false
+      this.showVersionPage = false
 
       switch (menuId) {
         case 'dashboard':
@@ -1370,8 +1443,26 @@ export default {
             }
           })
           break
+        case 'administracao':
+          this.showAdminPage = true
+          if (!this.pagesPreloaded) {
+            this.addNotification('🚀 Primeira vez acessando - preparando página...', 'info')
+          }
+          break
         case 'configuracoes':
           this.showSettingsPage = true
+          if (!this.pagesPreloaded) {
+            this.addNotification('🚀 Primeira vez acessando - preparando página...', 'info')
+          }
+          break
+        case 'ajuda':
+          this.showHelpPage = true
+          if (!this.pagesPreloaded) {
+            this.addNotification('🚀 Primeira vez acessando - preparando página...', 'info')
+          }
+          break
+        case 'versao':
+          this.showVersionPage = true
           if (!this.pagesPreloaded) {
             this.addNotification('🚀 Primeira vez acessando - preparando página...', 'info')
           }
@@ -1379,6 +1470,11 @@ export default {
         default:
           console.log('Menu não implementado:', menuId)
       }
+    },
+
+    handleSettingsClick() {
+      this.showUserDropdown = false // Fechar dropdown
+      this.handleMenuClick('configuracoes') // Navegar para configurações
     },
 
     handleLogout() {
@@ -2128,6 +2224,55 @@ export default {
         this.clearSelection()
       }
     },
+
+    // Métodos para seleção de linha inteira
+    toggleRowSelection(scheduleId, event) {
+      // Evitar seleção se clicar em elementos interativos
+      if (event.target.closest('button') || event.target.closest('.action-buttons') || event.target.closest('input[type="checkbox"]')) {
+        return
+      }
+
+      const schedule = this.displayedSchedules.find(s => s.id === scheduleId)
+      if (!schedule || !this.canSelectSchedule(schedule)) {
+        return
+      }
+
+      // Toggle da seleção
+      const index = this.selectedSchedules.indexOf(scheduleId)
+      if (index > -1) {
+        this.selectedSchedules.splice(index, 1)
+      } else {
+        this.selectedSchedules.push(scheduleId)
+      }
+
+      // Executar a lógica de verificação de status
+      this.onScheduleSelect()
+    },
+
+    // Método para selecionar todos via checkbox master
+    toggleSelectAll() {
+      if (this.isAllSelected) {
+        // Desmarcar todos os selecionáveis
+        const selectableIds = this.displayedSchedules
+          .filter(schedule => this.canSelectSchedule(schedule))
+          .map(schedule => schedule.id)
+        
+        this.selectedSchedules = this.selectedSchedules.filter(id => !selectableIds.includes(id))
+      } else {
+        // Marcar todos os selecionáveis que não estão marcados
+        const selectableIds = this.displayedSchedules
+          .filter(schedule => this.canSelectSchedule(schedule))
+          .map(schedule => schedule.id)
+        
+        selectableIds.forEach(id => {
+          if (!this.selectedSchedules.includes(id)) {
+            this.selectedSchedules.push(id)
+          }
+        })
+      }
+
+      this.onScheduleSelect()
+    },
     async loadMoreSchedules() {
       if (this.loadingMore || !this.pagination.hasMore) return
       
@@ -2865,6 +3010,40 @@ window.apiClient = apiClient
   margin-bottom: 0;
 }
 
+.schedules-table td:nth-child(4) {
+  max-width: 250px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: keep-all;
+}
+
+/* Estilos para seleção de linhas */
+.checkbox-column {
+  width: 50px;
+  text-align: center;
+  padding: 0.5rem !important;
+}
+
+.clickable-row {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.clickable-row:hover {
+  background-color: #f8f9fa;
+}
+
+.selected-row {
+  background-color: #e3f2fd !important;
+  border-left: 4px solid #1976d2;
+  box-shadow: 0 2px 4px rgba(25, 118, 210, 0.1);
+}
+
+.selected-row:hover {
+  background-color: #e3f2fd !important;
+}
+
 /* Loading more indicator */
 .loading-more {
   display: flex;
@@ -2995,11 +3174,36 @@ window.apiClient = apiClient
 .status-badge {
   padding: 0.25rem 0.5rem;
   border-radius: 0.375rem;
-  font-size: 0.75rem;
+  font-size: 14px;
   font-weight: 600;
   text-transform: uppercase;
   border: 1px solid;
   display: inline-block;
+  max-width: 150px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Responsive font size for longer status text */
+@media (max-width: 1200px) {
+  .status-badge {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 768px) {
+  .status-badge {
+    font-size: 11px;
+    max-width: 120px;
+  }
+}
+
+@media (max-width: 480px) {
+  .status-badge {
+    font-size: 10px;
+    max-width: 100px;
+  }
 }
 
 .status-badge.warning {
@@ -3108,6 +3312,11 @@ window.apiClient = apiClient
 /* Estilos de input de data movidos para .date-change-group */
 
 @media (max-width: 768px) {
+  /* Responsividade para seleção */
+  .checkbox-column {
+    width: 40px;
+  }
+  
   .bulk-actions-bar {
     flex-direction: column;
     align-items: stretch;
@@ -3502,6 +3711,31 @@ window.apiClient = apiClient
 /* Content Area Override - Reduzir padding superior */
 .content-area {
   padding-top: 0px !important;
+  font-size: 14px;
+}
+
+.content-area * {
+  font-size: inherit;
+}
+
+.content-area h1, .content-area h2, .content-area h3, .content-area h4, .content-area h5, .content-area h6 {
+  font-size: inherit;
+}
+
+.content-area .page-header h2 {
+  font-size: 1.5rem;
+}
+
+.content-area .btn {
+  font-size: 14px;
+}
+
+.content-area input, .content-area select, .content-area textarea {
+  font-size: 14px;
+}
+
+.content-area .table, .content-area .table th, .content-area .table td {
+  font-size: 14px;
 }
 
 /* Page Header Override */

@@ -1,26 +1,41 @@
 <template>
   <aside :class="sidebarClasses">
     <div class="sidebar-logo expanded">
-      <div class="logo-shine logo-box">
-        <img :src="logoUrl" alt="Logo" class="sidebar-logo-img" />
-      </div>
       <div class="logo-texts">
-        <div class="logo-title">Recebimento</div>
+        <div class="logo-title">Ambiente de Agendamentos</div>
       </div>
     </div>
 
     <nav class="sidebar-menu">
-      <div
-        v-for="item in filteredAllMenuItems"
-        :key="item.id"
-        :class="['menu-item', { active: isMenuActive(item.id) }]"
-      >
-        <!-- Menu principal -->
-        <div @click="handleMenuClick(item.id)" class="menu-main">
-          <div class="icon-container">
-            <i :class="item.icon"></i>
+      <div class="main-menu">
+        <div
+          v-for="item in filteredMainMenuItems"
+          :key="item.id"
+          :class="['menu-item', { active: isMenuActive(item.id) }]"
+        >
+          <!-- Menu principal -->
+          <div @click="handleMenuClick(item.id)" class="menu-main">
+            <div class="icon-container">
+              <i :class="item.icon"></i>
+            </div>
+            <span class="menu-label">{{ item.label }}</span>
           </div>
-          <span class="menu-label">{{ item.label }}</span>
+        </div>
+      </div>
+      
+      <div class="bottom-menu">
+        <div
+          v-for="item in filteredBottomMenuItems"
+          :key="item.id"
+          :class="['menu-item', { active: isMenuActive(item.id) }]"
+        >
+          <!-- Menu inferior -->
+          <div @click="handleMenuClick(item.id)" class="menu-main">
+            <div class="icon-container">
+              <i :class="item.icon"></i>
+            </div>
+            <span class="menu-label">{{ item.label }}</span>
+          </div>
         </div>
       </div>
     </nav>
@@ -55,17 +70,17 @@ export default {
           submenu: [],
         },
         {
-          id: 'agendamento',
-          icon: 'fa fa-calendar',
-          label: 'Agendamentos',
-          submenu: [],
-        },
-        {
           id: 'agendamento-lote',
           icon: 'fa fa-tasks',
           label: 'Agendamento em Lote',
           submenu: [],
-          requiresLevel: 0, // Apenas usuários nível 0
+          requiresLevel: [0, 1], // Usuários nível 0 e 1
+        },
+        {
+          id: 'agendamento',
+          icon: 'fa fa-history',
+          label: 'Histórico',
+          submenu: [],
         },
         {
           id: 'produtos',
@@ -74,10 +89,26 @@ export default {
           submenu: [],
         },
         {
-          id: 'configuracoes',
-          icon: 'fa fa-cog',
-          label: 'Configurações',
+          id: 'administracao',
+          icon: 'fa fa-users-cog',
+          label: 'Administração',
           submenu: [],
+          requiresLevel: 0, // Apenas usuários nível 0
+        },
+      ],
+      bottomMenuItems: [
+        {
+          id: 'ajuda',
+          icon: 'fa fa-question-circle',
+          label: 'Ajuda',
+          submenu: [],
+        },
+        {
+          id: 'versao',
+          icon: 'fa fa-code-branch',
+          label: 'Versão 0.5.0',
+          submenu: [],
+          requiresLevel: 0, // Apenas desenvolvedores (nível 0)
         },
       ],
     }
@@ -116,13 +147,36 @@ export default {
       }
     },
 
-    filteredAllMenuItems() {
+    filteredMainMenuItems() {
       if (!this.user || this.user.level_access === undefined) {
         return this.menuItems.filter(item => !item.requiresLevel)
       }
 
       return this.menuItems.filter(item => {
         if (item.requiresLevel !== undefined) {
+          // Se requiresLevel é um array, verificar se o nível do usuário está no array
+          if (Array.isArray(item.requiresLevel)) {
+            return item.requiresLevel.includes(this.user.level_access)
+          }
+          // Se é um número único, verificar igualdade
+          return this.user.level_access === item.requiresLevel
+        }
+        return true
+      })
+    },
+
+    filteredBottomMenuItems() {
+      if (!this.user || this.user.level_access === undefined) {
+        return this.bottomMenuItems.filter(item => !item.requiresLevel)
+      }
+
+      return this.bottomMenuItems.filter(item => {
+        if (item.requiresLevel !== undefined) {
+          // Se requiresLevel é um array, verificar se o nível do usuário está no array
+          if (Array.isArray(item.requiresLevel)) {
+            return item.requiresLevel.includes(this.user.level_access)
+          }
+          // Se é um número único, verificar igualdade
           return this.user.level_access === item.requiresLevel
         }
         return true
@@ -207,7 +261,22 @@ export default {
   overflow-y: auto !important;
   display: flex !important;
   flex-direction: column !important;
+  justify-content: space-between !important;
+}
+
+#app .main-menu,
+.main-menu {
+  display: flex !important;
+  flex-direction: column !important;
   gap: 2px !important;
+}
+
+#app .bottom-menu,
+.bottom-menu {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+  margin-top: auto !important;
 }
 
 #app .menu-item,

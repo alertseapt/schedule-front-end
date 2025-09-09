@@ -44,6 +44,7 @@
       </div>
     </div>
 
+
     <!-- Table -->
     <div class="table-container">
       <div v-if="loading" class="loading-container">
@@ -133,8 +134,11 @@
       v-if="showInfoModal"
       :nfe-data="selectedSchedule"
       :show-modal="showInfoModal"
+      :user="currentUser"
       @close="closeInfoModal"
       @edit="openEditModal"
+      @mark-tratativa="handleMarkTratativa"
+      @change-status="handleChangeStatus"
     >
     </nfe-info-modal>
 
@@ -180,7 +184,6 @@ export default {
       schedules: [],
       loading: false,
       selectedSchedule: null,
-      selectedSchedules: [],
       newDate: '',
       bulkActionLoading: false,
       showInfoModal: false,
@@ -211,6 +214,10 @@ export default {
   },
 
   computed: {
+    currentUser() {
+      return this.getCurrentUser()
+    },
+
     statusConfig() {
       return {
         Solicitado: { class: 'warning', label: 'Solicitado' },
@@ -230,32 +237,6 @@ export default {
       }
     },
 
-    selectedScheduleStatuses() {
-      const selected = this.schedules.filter(s => this.selectedSchedules.includes(s.id))
-      return [...new Set(selected.map(s => s.status))]
-    },
-    cancelRequestedBy() {
-      if (this.selectedSchedules.length === 0) return 'administrador'
-      
-      const selected = this.schedules.filter(s => this.selectedSchedules.includes(s.id))
-      if (selected.length === 0) return 'administrador'
-      
-      const schedule = selected[0]
-      if (!schedule.historic) return 'administrador'
-      
-      // Procurar no histórico por uma entrada de cancelamento
-      const historicEntries = Object.values(schedule.historic)
-      const cancelEntry = historicEntries.find(entry => 
-        entry.action && entry.action.includes('Cancelar') || 
-        entry.action && entry.action.includes('cancelamento')
-      )
-      
-      return cancelEntry && cancelEntry.user ? cancelEntry.user : 'administrador'
-    },
-
-    canBulkManage() {
-      return this.selectedSchedules.length > 0 && this.selectedScheduleStatuses.length === 1
-    },
 
     userLevel() {
       try {
@@ -298,7 +279,6 @@ export default {
     async loadSchedules() {
       if (this.pagination.page === 1) {
         this.loading = true
-        this.clearSelection() // Clear selection when reloading
       }
       try {
         // Usar o apiClient global com cache
@@ -490,10 +470,126 @@ export default {
 
     handleScheduleUpdated(updatedSchedule) {
       console.log('✅ Agendamento atualizado:', updatedSchedule)
-      // CORREÇÃO: Resetar paginação para evitar duplicatas ao recarregar
-      this.resetPagination()
-      this.loadSchedules()
+      
+      // Fechar modal primeiro para evitar problemas visuais
       this.closeEditModal()
+      
+      // Refresh completo da página após salvamento
+      console.log('🔄 Realizando refresh da página após atualização do agendamento')
+      setTimeout(() => {
+        window.location.reload()
+      }, 500) // Pequeno delay para permitir que o modal feche suavemente
+    },
+
+    async handleMarkTratativa(scheduleData) {
+      try {
+        console.log('⚠️ Marcando agendamento como Em Tratativa:', scheduleData)
+        
+        const apiClient = window.apiClient
+        const currentUser = this.getCurrentUser()
+
+        // Preparar dados para atualização - apenas alterar o status
+        const updateData = {
+          ...scheduleData,
+          status: 'Tratativa',
+          historic: {
+            ...scheduleData.historic,
+            [`tratativa_${Date.now()}`]: {
+              timestamp: new Date().toISOString(),
+              user: currentUser,
+              action: 'Status alterado para Em Tratativa',
+              changes: [`Status: "${scheduleData.status}" → "Tratativa"`],
+              comment: `Status alterado de "${scheduleData.status}" para "Tratativa"`
+            }
+          }
+        }
+
+        const response = await apiClient.request(`/schedules/${scheduleData.id}`, {
+          method: 'PUT',
+          data: updateData,
+        })
+
+        console.log('✅ Agendamento marcado como Em Tratativa:', response)
+
+        // Fechar modal primeiro
+        this.closeInfoModal()
+
+        // Notificar sucesso
+        this.$emit('notification', {
+          type: 'success',
+          message: 'Agendamento marcado como Em Tratativa!',
+        })
+
+        // Refresh completo da página após alteração de status
+        console.log('🔄 Realizando refresh da página após marcar como Em Tratativa')
+        setTimeout(() => {
+          window.location.reload()
+        }, 1000) // Delay maior para mostrar a notificação
+
+      } catch (error) {
+        console.error('❌ Erro ao marcar como Em Tratativa:', error)
+        
+        this.$emit('notification', {
+          type: 'error',
+          message: 'Erro ao marcar agendamento como Em Tratativa.',
+        })
+      }
+    },
+
+    async handleChangeStatus(data) {
+      try {
+        console.log('🔄 Alterando status do agendamento:', data)
+        
+        const { scheduleData, newStatus } = data
+        const apiClient = window.apiClient
+        const currentUser = this.getCurrentUser()
+
+        // Preparar dados para atualização
+        const updateData = {
+          ...scheduleData,
+          status: newStatus,
+          historic: {
+            ...scheduleData.historic,
+            [`status_change_${Date.now()}`]: {
+              timestamp: new Date().toISOString(),
+              user: currentUser,
+              action: `Status alterado para ${newStatus}`,
+              changes: [`Status: "${scheduleData.status}" → "${newStatus}"`],
+              comment: `Status alterado de "${scheduleData.status}" para "${newStatus}"`
+            }
+          }
+        }
+
+        const response = await apiClient.request(`/schedules/${scheduleData.id}`, {
+          method: 'PUT',
+          data: updateData,
+        })
+
+        console.log('✅ Status do agendamento alterado:', response)
+
+        // Fechar modal primeiro
+        this.closeInfoModal()
+
+        // Notificar sucesso
+        this.$emit('notification', {
+          type: 'success',
+          message: `Status alterado para ${newStatus}!`,
+        })
+
+        // Refresh completo da página após alteração de status
+        console.log('🔄 Realizando refresh da página após alteração de status')
+        setTimeout(() => {
+          window.location.reload()
+        }, 1000) // Delay maior para mostrar a notificação
+
+      } catch (error) {
+        console.error('❌ Erro ao alterar status:', error)
+        
+        this.$emit('notification', {
+          type: 'error',
+          message: 'Erro ao alterar status do agendamento.',
+        })
+      }
     },
 
     async loadMoreSchedules() {
@@ -619,497 +715,7 @@ export default {
     },
 
 
-    onScheduleSelect() {
-      // Verificar se todos os agendamentos selecionáveis estão selecionados
-      const selectableSchedules = this.schedules.filter(schedule => 
-        this.canSelectSchedule(schedule)
-      )
-      // Checkbox select all removido - apenas seleção individual
-      
-      // Verificar se os agendamentos selecionados têm o mesmo status
-      const selectedStatuses = this.selectedScheduleStatuses
-      if (selectedStatuses.length > 1) {
-        // Se tiver status diferentes, manter apenas o último selecionado
-        const lastSelected = this.selectedSchedules[this.selectedSchedules.length - 1]
-        const lastSelectedSchedule = this.schedules.find(s => s.id === lastSelected)
-        if (lastSelectedSchedule) {
-          this.selectedSchedules = this.selectedSchedules.filter(id => {
-            const schedule = this.schedules.find(s => s.id === id)
-            return schedule && schedule.status === lastSelectedSchedule.status
-          })
-        }
-      }
-    },
 
-    canSelectSchedule(schedule) {
-      // Verificar se pode selecionar baseado no status e permissões do usuário
-      const allowedStatuses = ['Solicitado', 'Contestado', 'Cancelar', 'Agendado', 'Em conferência', 'Conferência', 'Recebido', 'Tratativa', 'Em estoque', 'Estoque', 'Marcação']
-      if (!allowedStatuses.includes(schedule.status)) return false
-
-      // Para agendamentos de marcação, verificar se usuário tem permissão
-      if (schedule.status === 'Marcação') {
-        // Apenas usuários com nível diferente de 1 podem selecionar marcações
-        if (this.userLevel === 1 || this.userLevel === '1') {
-          return false
-        }
-      }
-
-      // Se já tem agendamentos selecionados, só pode selecionar do mesmo status
-      if (this.selectedSchedules.length > 0) {
-        const selectedStatuses = this.selectedScheduleStatuses
-        if (selectedStatuses.length === 1 && !selectedStatuses.includes(schedule.status)) {
-          return false
-        }
-      }
-
-      return true
-    },
-
-    clearSelection() {
-      this.selectedSchedules = []
-      this.newDate = ''
-    },
-
-    async acceptSchedules() {
-      if (this.selectedSchedules.length === 0) return
-
-      this.bulkActionLoading = true
-      try {
-        await this.bulkUpdateStatus('Agendado', 'Agendamento aceito')
-        this.$emit('notification', {
-          type: 'success',
-          message: `${this.selectedSchedules.length} agendamento(s) aceito(s) com sucesso`
-        })
-        this.clearSelection()
-        // CORREÇÃO: Resetar paginação antes de recarregar
-        this.resetPagination()
-        await this.loadSchedules()
-      } catch (error) {
-        console.error('Erro ao aceitar agendamentos:', error)
-        this.$emit('notification', {
-          type: 'error',
-          message: 'Erro ao aceitar agendamentos'
-        })
-      } finally {
-        this.bulkActionLoading = false
-      }
-    },
-
-    async changeDateToContestado() {
-      if (this.selectedSchedules.length === 0 || !this.newDate) return
-
-      this.bulkActionLoading = true
-      try {
-        await this.bulkUpdateStatusWithDateAndComment('Contestado', this.newDate)
-        this.$emit('notification', {
-          type: 'success',
-          message: `Data alterada para ${this.selectedSchedules.length} agendamento(s)`
-        })
-        this.clearSelection()
-        // CORREÇÃO: Resetar paginação antes de recarregar
-        this.resetPagination()
-        await this.loadSchedules()
-      } catch (error) {
-        console.error('Erro ao alterar data:', error)
-        this.$emit('notification', {
-          type: 'error',
-          message: 'Erro ao alterar data dos agendamentos'
-        })
-      } finally {
-        this.bulkActionLoading = false
-      }
-    },
-
-    async acceptNewDate() {
-      if (this.selectedSchedules.length === 0) return
-
-      this.bulkActionLoading = true
-      try {
-        await this.bulkUpdateStatus('Agendado', 'Nova data aceita')
-        this.$emit('notification', {
-          type: 'success',
-          message: `Nova data aceita para ${this.selectedSchedules.length} agendamento(s)`
-        })
-        this.clearSelection()
-        // CORREÇÃO: Resetar paginação antes de recarregar
-        this.resetPagination()
-        await this.loadSchedules()
-      } catch (error) {
-        console.error('Erro ao aceitar nova data:', error)
-        this.$emit('notification', {
-          type: 'error',
-          message: 'Erro ao aceitar nova data'
-        })
-      } finally {
-        this.bulkActionLoading = false
-      }
-    },
-
-    async confirmContestado() {
-      if (this.selectedSchedules.length === 0) return
-
-      this.bulkActionLoading = true
-      try {
-        await this.bulkUpdateStatus('Agendado', 'Data contestada confirmada')
-        this.$emit('notification', {
-          type: 'success',
-          message: `${this.selectedSchedules.length} agendamento(s) confirmado(s)`
-        })
-        this.clearSelection()
-        // CORREÇÃO: Resetar paginação antes de recarregar
-        this.resetPagination()
-        await this.loadSchedules()
-      } catch (error) {
-        console.error('Erro ao confirmar agendamentos:', error)
-        this.$emit('notification', {
-          type: 'error',
-          message: 'Erro ao confirmar agendamentos'
-        })
-      } finally {
-        this.bulkActionLoading = false
-      }
-    },
-
-    async changeContestadoToAgendado() {
-      if (this.selectedSchedules.length === 0 || !this.newDate) return
-
-      this.bulkActionLoading = true
-      try {
-        await this.bulkUpdateStatusWithDate('Agendado', this.newDate, 'Data contestada reagendada')
-        this.$emit('notification', {
-          type: 'success',
-          message: `${this.selectedSchedules.length} agendamento(s) reagendado(s)`
-        })
-        this.clearSelection()
-        // CORREÇÃO: Resetar paginação antes de recarregar
-        this.resetPagination()
-        await this.loadSchedules()
-      } catch (error) {
-        console.error('Erro ao reagendar:', error)
-        this.$emit('notification', {
-          type: 'error',
-          message: 'Erro ao reagendar agendamentos'
-        })
-      } finally {
-        this.bulkActionLoading = false
-      }
-    },
-    
-    async cancelSchedules() {
-      if (this.selectedSchedules.length === 0) return
-      
-      if (!confirm(`Tem certeza que deseja cancelar ${this.selectedSchedules.length} agendamento(s)?`)) {
-        return
-      }
-      
-      this.bulkActionLoading = true
-      try {
-        // Usuário nível 1 (admin) -> status "Cancelar" (precisa aprovação)
-        // Outros usuários -> status "Cancelado" (cancelamento direto)
-        const newStatus = this.userLevel === 1 ? 'Cancelar' : 'Cancelado'
-        const comment = this.userLevel === 1 ? 'Agendamento solicitado para cancelamento' : 'Agendamento cancelado diretamente'
-        
-        await this.bulkUpdateStatus(newStatus, comment)
-        
-        const message = this.userLevel === 1 
-          ? `${this.selectedSchedules.length} agendamento(s) marcado(s) para cancelamento` 
-          : `${this.selectedSchedules.length} agendamento(s) cancelado(s) com sucesso`
-          
-        this.$emit('notification', {
-          type: 'success',
-          message: message
-        })
-        this.clearSelection()
-        // CORREÇÃO: Resetar paginação antes de recarregar
-        this.resetPagination()
-        await this.loadSchedules()
-      } catch (error) {
-        console.error('Erro ao cancelar agendamentos:', error)
-        this.$emit('notification', {
-          type: 'error',
-          message: 'Erro ao cancelar agendamentos'
-        })
-      } finally {
-        this.bulkActionLoading = false
-      }
-    },
-
-    async deleteMarcacoes() {
-      if (this.selectedSchedules.length === 0) return
-      
-      if (!confirm(`Tem certeza que deseja excluir ${this.selectedSchedules.length} marcação(ões)? Esta ação não pode ser desfeita.`)) {
-        return
-      }
-      
-      this.bulkActionLoading = true
-      try {
-        const apiClient = window.apiClient
-        
-        // Deletar cada marcação selecionada
-        for (const scheduleId of this.selectedSchedules) {
-          await apiClient.request(`/schedules/${scheduleId}`, {
-            method: 'DELETE'
-          })
-        }
-        
-        this.$emit('notification', {
-          type: 'success',
-          message: `${this.selectedSchedules.length} marcação(ões) excluída(s) com sucesso`
-        })
-        this.clearSelection()
-        // CORREÇÃO: Resetar paginação antes de recarregar
-        this.resetPagination()
-        await this.loadSchedules()
-      } catch (error) {
-        console.error('Erro ao excluir marcações:', error)
-        this.$emit('notification', {
-          type: 'error',
-          message: 'Erro ao excluir marcações'
-        })
-      } finally {
-        this.bulkActionLoading = false
-      }
-    },
-    
-    async markAsReceived() {
-      if (this.selectedSchedules.length === 0) return
-      
-      if (!confirm(`Tem certeza que deseja marcar ${this.selectedSchedules.length} agendamento(s) como em conferência?`)) {
-        return
-      }
-      
-      this.bulkActionLoading = true
-      try {
-        await this.bulkUpdateStatus('Em conferência', 'Agendamento marcado como em conferência')
-        this.$emit('notification', {
-          type: 'success',
-          message: `${this.selectedSchedules.length} agendamento(s) marcado(s) como em conferência`
-        })
-        this.clearSelection()
-        // CORREÇÃO: Resetar paginação antes de recarregar
-        this.resetPagination()
-        await this.loadSchedules()
-      } catch (error) {
-        console.error('Erro ao marcar como em conferência:', error)
-        this.$emit('notification', {
-          type: 'error',
-          message: 'Erro ao marcar agendamentos como em conferência'
-        })
-      } finally {
-        this.bulkActionLoading = false
-      }
-    },
-
-    async markAsEstoque() {
-      if (this.selectedSchedules.length === 0) return
-      
-      if (!confirm(`Tem certeza que deseja marcar ${this.selectedSchedules.length} agendamento(s) como estoque?`)) {
-        return
-      }
-      
-      this.bulkActionLoading = true
-      try {
-        await this.bulkUpdateStatus('Em estoque', 'Agendamento marcado como estoque')
-        this.$emit('notification', {
-          type: 'success',
-          message: `${this.selectedSchedules.length} agendamento(s) marcado(s) como estoque`
-        })
-        this.clearSelection()
-        // CORREÇÃO: Resetar paginação antes de recarregar
-        this.resetPagination()
-        await this.loadSchedules()
-      } catch (error) {
-        console.error('Erro ao marcar como estoque:', error)
-        this.$emit('notification', {
-          type: 'error',
-          message: 'Erro ao marcar agendamentos como estoque'
-        })
-      } finally {
-        this.bulkActionLoading = false
-      }
-    },
-
-    async acceptCancellation() {
-      if (this.selectedSchedules.length === 0) return
-      
-      if (!confirm(`Tem certeza que deseja aceitar o cancelamento de ${this.selectedSchedules.length} agendamento(s)?`)) {
-        return
-      }
-      
-      this.bulkActionLoading = true
-      try {
-        await this.bulkUpdateStatus('Cancelado', 'Cancelamento aceito')
-        this.$emit('notification', {
-          type: 'success',
-          message: `${this.selectedSchedules.length} cancelamento(s) aceito(s)`
-        })
-        this.clearSelection()
-        // CORREÇÃO: Resetar paginação antes de recarregar
-        this.resetPagination()
-        await this.loadSchedules()
-      } catch (error) {
-        console.error('Erro ao aceitar cancelamento:', error)
-        this.$emit('notification', {
-          type: 'error',
-          message: 'Erro ao aceitar cancelamento'
-        })
-      } finally {
-        this.bulkActionLoading = false
-      }
-    },
-
-    async bulkUpdateStatus(newStatus, comment) {
-      // Usar o apiClient global com cache
-      const apiClient = window.apiClient
-      
-      for (const scheduleId of this.selectedSchedules) {
-        const payload = {
-          status: newStatus,
-          historic_entry: {
-            user: this.getCurrentUser().user || this.getCurrentUser().name || 'Usuário',
-            action: `Status alterado para ${newStatus}`,
-            comment: comment
-          }
-        }
-        
-        console.log('📤 Enviando payload para status update:', payload)
-        console.log('📍 URL:', `/schedules/${scheduleId}/status`)
-        
-        await apiClient.request(`/schedules/${scheduleId}/status`, {
-          method: 'PATCH',
-          data: payload
-        })
-      }
-    },
-
-    async bulkUpdateStatusWithDate(newStatus, newDate, comment) {
-      // Usar o apiClient global com cache
-      const apiClient = window.apiClient
-      
-      // Garantir que a data seja formatada corretamente
-      const formattedDate = this.formatDateForBackend(newDate)
-      console.log(`📤 Data escolhida: ${newDate}`)
-      console.log(`📤 Data formatada para backend: ${formattedDate}`)
-      
-      for (const scheduleId of this.selectedSchedules) {
-        console.log(`📤 Atualizando agendamento ${scheduleId} com nova data ${formattedDate} e status ${newStatus}`)
-        
-        // Buscar o agendamento atual para ter todos os dados
-        const scheduleResponse = await apiClient.request(`/schedules/${scheduleId}`, {
-          method: 'GET'
-        })
-        
-        const currentSchedule = scheduleResponse.schedule
-        
-        // Atualizar com todos os campos necessários incluindo a nova data
-        const updatePayload = {
-          number: currentSchedule.number,
-          nfe_key: currentSchedule.nfe_key,
-          client: currentSchedule.client_cnpj || currentSchedule.client,
-          case_count: currentSchedule.case_count,
-          date: formattedDate,
-          qt_prod: currentSchedule.qt_prod,
-          historic: {
-            ...currentSchedule.historic,
-            [`date_change_${Date.now()}`]: {
-              timestamp: new Date().toISOString(),
-              user: this.getCurrentUser().user || this.getCurrentUser().name || 'Usuário',
-              action: `Data alterada de ${this.formatDateForDisplay(currentSchedule.date)} para ${this.formatDateForDisplay(formattedDate)}`,
-              comment: 'Data alterada via bulk action',
-              previous_date: currentSchedule.date,
-              new_date: formattedDate
-            }
-          }
-        }
-        
-        console.log('📤 Payload para atualização:', updatePayload)
-        
-        // Primeiro atualiza a data e dados
-        await apiClient.request(`/schedules/${scheduleId}`, {
-          method: 'PUT',
-          data: updatePayload
-        })
-        
-        // Depois atualiza o status
-        const statusPayload = {
-          status: newStatus,
-          historic_entry: {
-            user: this.getCurrentUser().user || this.getCurrentUser().name || 'Usuário',
-            action: `Status alterado para ${newStatus} com nova data ${this.formatDateForDisplay(formattedDate)}`,
-            comment: comment
-          }
-        }
-        
-        console.log('📤 Payload para status:', statusPayload)
-        
-        await apiClient.request(`/schedules/${scheduleId}/status`, {
-          method: 'PATCH',
-          data: statusPayload
-        })
-      }
-    },
-
-    async bulkUpdateStatusWithDateAndComment(newStatus, newDate) {
-      // Usar o apiClient global com cache
-      const apiClient = window.apiClient
-      const formattedDate = this.formatDateForBackend(newDate)
-      
-      for (const scheduleId of this.selectedSchedules) {
-        // Buscar o agendamento atual para ter todos os dados
-        const scheduleResponse = await apiClient.request(`/schedules/${scheduleId}`, {
-          method: 'GET'
-        })
-        
-        const currentSchedule = scheduleResponse.schedule
-        
-        // Gerar comentário personalizado para contestação
-        const oldDateFormatted = this.formatDateForDisplay(currentSchedule.date)
-        const newDateFormatted = this.formatDateForDisplay(formattedDate)
-        const customComment = `A data escolhida (${oldDateFormatted}) está indisponível, a data escolhida pela nossa equipe é ${newDateFormatted}. Por gentileza confirmar em nossa plataforma.`
-        
-        // Atualizar com todos os campos necessários incluindo a nova data
-        const updatePayload = {
-          number: currentSchedule.number,
-          nfe_key: currentSchedule.nfe_key,
-          client: currentSchedule.client_cnpj || currentSchedule.client,
-          case_count: currentSchedule.case_count,
-          date: formattedDate,
-          qt_prod: currentSchedule.qt_prod,
-          historic: {
-            ...currentSchedule.historic,
-            [`date_change_${Date.now()}`]: {
-              timestamp: new Date().toISOString(),
-              user: this.getCurrentUser().user || this.getCurrentUser().name || 'Usuário',
-              action: `Data alterada de ${oldDateFormatted} para ${newDateFormatted}`,
-              comment: customComment,
-              previous_date: currentSchedule.date,
-              new_date: formattedDate
-            }
-          }
-        }
-        
-        // Primeiro atualiza a data e dados
-        await apiClient.request(`/schedules/${scheduleId}`, {
-          method: 'PUT',
-          data: updatePayload
-        })
-        
-        // Depois atualiza o status
-        const statusPayload = {
-          status: newStatus,
-          historic_entry: {
-            user: this.getCurrentUser().user || this.getCurrentUser().name || 'Usuário',
-            action: `Status alterado para ${newStatus} com nova data ${newDateFormatted}`,
-            comment: customComment
-          }
-        }
-        
-        await apiClient.request(`/schedules/${scheduleId}/status`, {
-          method: 'PATCH',
-          data: statusPayload
-        })
-      }
-    },
 
     getCurrentUser() {
       try {
@@ -1295,7 +901,7 @@ export default {
         
         this.$emit('notification', 'Busca limpa - Lista restaurada', 'info')
       }
-    }
+    },
   },
 
   async mounted() {
@@ -1334,78 +940,6 @@ export default {
 
 <style scoped>
 
-.bulk-actions-bar {
-  background-color: #f8f9fa;
-  border: 1px solid #dee2e6;
-  border-radius: 0.375rem;
-  padding: 1rem;
-  margin-bottom: 1rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-  min-height: 50px;
-}
-
-.selected-info {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  width: 100%;
-  gap: 1rem;
-  font-weight: 500;
-  color: #495057;
-  flex-wrap: wrap;
-}
-
-/* Bulk actions removido - agora os elementos estão na selected-info */
-
-.contestado-actions,
-.solicitado-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.non-level-1-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.date-change-group {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.date-change-group input[type="date"] {
-  width: 150px;
-}
-
-.level-1-actions {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.non-level-1-actions input[type="date"],
-.solicitado-actions input[type="date"] {
-  width: 150px;
-}
-
-.non-level-1-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-
-.contact-text {
-  color: #6c757d;
-  font-style: italic;
-  font-size: 0.875rem;
-}
 
 /* Status badge styles */
 .status-badge {
@@ -1472,12 +1006,6 @@ export default {
   border-color: #8B1538 !important;
 }
 
-/* Checkboxes maiores */
-.schedules-table input[type="checkbox"] {
-  transform: scale(1.5);
-  margin: 0;
-  cursor: pointer;
-}
 
 /* Botão Aceitar Cancelamento com cor vinho */
 .btn-accept-cancel {
@@ -1500,55 +1028,6 @@ export default {
   box-shadow: 0 0 0 0.2rem rgba(139, 21, 56, 0.25) !important;
 }
 
-/* Selection badge styles */
-.selection-btn {
-  position: relative;
-}
-
-.selection-badge {
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  background: #dc3545;
-  color: white;
-  border-radius: 50%;
-  min-width: 20px;
-  height: 20px;
-  font-size: 0.75rem;
-  font-weight: bold;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 2px solid white;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-}
-
-.bulk-actions {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  flex-shrink: 0;
-}
-
-.contestado-actions,
-.solicitado-actions,
-.agendado-actions,
-.cancelar-actions,
-.universal-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  white-space: nowrap;
-}
-
-.non-level-1-actions {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  white-space: nowrap;
-}
-
-/* Actions alignment corrigido */
 
 /* Table wrapper - sem scroll interno, deixa a página controlar */
 .table-wrapper {
@@ -1561,6 +1040,7 @@ export default {
   width: 100%;
   margin-bottom: 0;
 }
+
 
 /* Loading more indicator - agora fora da tabela */
 .loading-more {
@@ -1609,27 +1089,6 @@ export default {
 }
 
 @media (max-width: 768px) {
-  .bulk-actions-bar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  
-  .bulk-actions {
-    justify-content: center;
-  }
-  
-  .contestado-actions,
-  .solicitado-actions,
-  .agendado-actions {
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-  
-  .non-level-1-actions {
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-  
   .table-wrapper {
     /* Sem altura máxima - deixa a tabela crescer naturalmente */
   }

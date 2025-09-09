@@ -13,7 +13,7 @@ const path = require('path');
 
 // Configurações
 const DIST_DIR = path.join(__dirname, 'dist');
-const PRODUCTION_API_URL = 'http://recebimento.mercocamptech.com.br:4000/api';
+const PRODUCTION_API_URL = '/api'; // Usar proxy reverso em produção
 
 console.log('=== Post-Build para Produção ===');
 
@@ -50,6 +50,28 @@ try {
     console.error('❌ Erro ao copiar api-standalone.js:', error);
 }
 
+// 2.6. Copiar diagnostic.js para dist (temporário para debug)
+console.log('Copiando diagnostic.js...');
+try {
+    const diagnosticSrc = path.join(__dirname, 'diagnostic.js');
+    const diagnosticDest = path.join(DIST_DIR, 'diagnostic.js');
+    fs.copyFileSync(diagnosticSrc, diagnosticDest);
+    console.log('✅ diagnostic.js copiado');
+} catch (error) {
+    console.error('❌ Erro ao copiar diagnostic.js:', error);
+}
+
+// 2.7. Copiar login.css para dist (standalone)
+console.log('Copiando login.css...');
+try {
+    const loginCssSrc = path.join(__dirname, 'src/assets/css/login.css');
+    const loginCssDest = path.join(DIST_DIR, 'assets/login.css');
+    fs.copyFileSync(loginCssSrc, loginCssDest);
+    console.log('✅ login.css copiado');
+} catch (error) {
+    console.error('❌ Erro ao copiar login.css:', error);
+}
+
 // 3. Copiar e modificar login.html (se existir)
 console.log('Copiando e modificando login.html...');
 try {
@@ -84,9 +106,28 @@ try {
         );
     }
     
-    // Corrigir caminhos relativos/absolutos para os recursos
-    content = content.replace(/href="\/assets\//g, 'href="assets/');
-    content = content.replace(/src="\/assets\//g, 'src="assets/');
+    // Corrigir caminhos dos assets - substituir caminhos de desenvolvimento pelos de produção
+    // Primeiro, encontrar os nomes dos arquivos gerados pelo build
+    const distAssetsDir = path.join(DIST_DIR, 'assets');
+    let logoFile = '';
+    let cssFile = '';
+    
+    if (fs.existsSync(distAssetsDir)) {
+        const assets = fs.readdirSync(distAssetsDir);
+        logoFile = assets.find(file => file.startsWith('logo-') && file.endsWith('.png')) || 'logo.png';
+        cssFile = assets.find(file => file.startsWith('main-') && file.endsWith('.css')) || 'main.css';
+    }
+    
+    console.log(`Encontrados assets para login.html: logo=${logoFile}, css=${cssFile}`);
+    
+    // Substituir caminhos de desenvolvimento pelos caminhos de produção
+    content = content.replace(/href="\/src\/assets\/images\/logo\.png"/g, `href="/assets/${logoFile}"`);
+    content = content.replace(/src="\/src\/assets\/images\/logo\.png"/g, `src="/assets/${logoFile}"`);
+    content = content.replace(/href="\/src\/assets\/css\/login\.css"/g, `href="/assets/login.css"`);    // Usar CSS específico do login
+    
+    // Corrigir caminhos relativos/absolutos para os recursos (fallback)
+    content = content.replace(/href="\/assets\//g, 'href="/assets/');
+    content = content.replace(/src="\/assets\//g, 'src="/assets/');
     
     // CORREÇÃO: Substituir importação do módulo ES6 por versão compatível com produção
     content = content.replace(
@@ -162,9 +203,23 @@ try {
         );
     }
     
-    // Corrigir caminhos relativos/absolutos para os recursos
-    content = content.replace(/href="\/assets\//g, 'href="assets/');
-    content = content.replace(/src="\/assets\//g, 'src="assets/');
+    // Corrigir caminhos dos assets - reutilizar os arquivos já encontrados
+    if (fs.existsSync(path.join(DIST_DIR, 'assets'))) {
+        const assets = fs.readdirSync(path.join(DIST_DIR, 'assets'));
+        const logoFile = assets.find(file => file.startsWith('logo-') && file.endsWith('.png')) || 'logo.png';
+        const cssFile = assets.find(file => file.startsWith('main-') && file.endsWith('.css')) || 'main.css';
+        
+        console.log(`Encontrados assets para schedule-verification.html: logo=${logoFile}, css=${cssFile}`);
+        
+        // Substituir caminhos de desenvolvimento pelos caminhos de produção
+        content = content.replace(/href="\/src\/assets\/images\/logo\.png"/g, `href="/assets/${logoFile}"`);
+        content = content.replace(/src="\/src\/assets\/images\/logo\.png"/g, `src="/assets/${logoFile}"`);
+        content = content.replace(/href="\/src\/assets\/css\/login\.css"/g, `href="/assets/login.css"`);    // Usar CSS específico do login
+    }
+    
+    // Corrigir caminhos relativos/absolutos para os recursos (fallback)
+    content = content.replace(/href="\/assets\//g, 'href="/assets/');
+    content = content.replace(/src="\/assets\//g, 'src="/assets/');
     
     // CORREÇÃO: Substituir importação do módulo ES6 por versão compatível com produção
     content = content.replace(
@@ -211,6 +266,7 @@ console.log('Verificando index.html...');
 try {
     const indexPath = path.join(DIST_DIR, 'index.html');
     let content = fs.readFileSync(indexPath, 'utf8');
+    let modified = false;
     
     // Inserir script config.js se não existir
     if (!content.includes('<script src="config.js"></script>')) {
@@ -218,6 +274,37 @@ try {
             '</head>', 
             '    <script src="config.js"></script>\n</head>'
         );
+        modified = true;
+        console.log('✅ config.js adicionado ao index.html');
+    } else {
+        console.log('✓ config.js já está no index.html');
+    }
+    
+    // Inserir script api-standalone.js se não existir
+    if (!content.includes('<script src="api-standalone.js"></script>')) {
+        content = content.replace(
+            '</head>', 
+            '    <script src="api-standalone.js"></script>\n</head>'
+        );
+        modified = true;
+        console.log('✅ api-standalone.js adicionado ao index.html');
+    } else {
+        console.log('✓ api-standalone.js já está no index.html');
+    }
+    
+    // Inserir script diagnostic.js se não existir (temporário para debug)
+    if (!content.includes('<script src="diagnostic.js"></script>')) {
+        content = content.replace(
+            '</head>', 
+            '    <script src="diagnostic.js"></script>\n</head>'
+        );
+        modified = true;
+        console.log('✅ diagnostic.js adicionado ao index.html');
+    } else {
+        console.log('✓ diagnostic.js já está no index.html');
+    }
+    
+    if (modified) {
         fs.writeFileSync(indexPath, content, 'utf8');
         console.log('✅ index.html modificado com sucesso');
     } else {

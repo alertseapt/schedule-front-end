@@ -5,7 +5,7 @@
       <div class="modal-header">
         <h3>
           <i :class="isEffectivatingBooking ? 'fas fa-arrow-up' : 'fas fa-plus-circle'"></i>
-          {{ isEffectivatingBooking ? 'Efetivar Marcação' : 'Criar Novo Agendamento' }}
+          {{ isEffectivatingBooking ? 'Efetivar Agendamento Prévio' : 'Criar Novo Agendamento' }}
         </h3>
         <button class="btn-close" @click="closeModal">
           <i class="fas fa-times"></i>
@@ -421,7 +421,7 @@
           class="btn btn-success"
         >
           <i class="fas fa-check"></i>
-          {{ isEffectivatingBooking ? 'Efetivar Marcação' : 'Efetivar Agendamento' }}
+          {{ isEffectivatingBooking ? 'Efetivar Agndamento Prévio' : 'Solicitar Agendamento' }}
         </button>
       </div>
 

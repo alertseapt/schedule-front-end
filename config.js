@@ -67,7 +67,7 @@ window.API_CONFIG = {
   RETRY_ATTEMPTS: 3,     // Tentativas em caso de erro
   
   // ===== FLAGS DE DESENVOLVIMENTO =====
-  ENABLE_DEBUG: false,   // Ativa logs detalhados no console
+  ENABLE_DEBUG: true,    // Ativa logs detalhados no console - TEMPORARIAMENTE ATIVADO PARA DEBUG
   ENABLE_MOCK: false,    // Usa dados mockados (desenvolvimento)
   
   // ===== IDENTIFICAÇÃO DO AMBIENTE =====

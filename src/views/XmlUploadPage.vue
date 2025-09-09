@@ -163,7 +163,7 @@
           >
             <i v-if="isUploading" class="fas fa-spinner fa-spin"></i>
             <i v-else class="fas fa-upload"></i>
-            {{ isUploading ? 'Processando...' : 'Fazer Upload' }}
+            {{ isUploading ? 'Processando...' : 'Configurar Produtos e Agendar' }}
           </button>
           
           <button
@@ -228,6 +228,17 @@
       </div>
     </div>
     
+    <!-- Batch Products Configuration Modal -->
+    <BatchProductsModal
+      v-if="showBatchProductsModal"
+      :show-modal="showBatchProductsModal"
+      :parsed-files="parsedFilesForModal"
+      :selected-client="selectedClientData"
+      :receipt-date="receiptDate"
+      @close="closeBatchProductsModal"
+      @completed="handleBatchCompleted"
+    />
+
     <!-- Client Selection Modal -->
     <div v-if="showClientModal" class="modal-overlay" @click="closeClientSelectionModal">
       <div class="modal-content estoque-selection-modal" @click.stop>
@@ -278,6 +289,7 @@
 
 <script>
 import { API_CONFIG } from '../config/api.js'
+import BatchProductsModal from '../components/BatchProductsModal.vue'
 
 // Função para verificar se o usuário tem acesso (apenas nível 0)
 function hasXmlUploadAccess() {
@@ -288,8 +300,8 @@ function hasXmlUploadAccess() {
     const user = JSON.parse(userData)
     const level = user.level_access
     
-    // Permitir apenas usuários com nível de acesso 0 (desenvolvedor)
-    return level === 0
+    // Permitir usuários com nível de acesso 0 (desenvolvedor) ou 1 (usuário)
+    return level === 0 || level === 1
   } catch (error) {
     console.error('Erro ao verificar acesso:', error)
     return false
@@ -298,6 +310,9 @@ function hasXmlUploadAccess() {
 
 export default {
   name: 'XmlUploadPage',
+  components: {
+    BatchProductsModal
+  },
   data() {
     return {
       selectedFiles: [],
@@ -312,7 +327,9 @@ export default {
       tempMessage: null,
       availableClients: [],
       loadingClients: false,
-      showClientModal: false
+      showClientModal: false,
+      showBatchProductsModal: false,
+      parsedFilesForModal: []
     }
   },
   
@@ -357,10 +374,12 @@ export default {
           return
         }
         
-        // Desenvolvedores (nível 0) precisariam fazer chamada à API
+        // Desenvolvedores (nível 0) e usuários (nível 1) podem usar agendamento em lote
         // Mas por ora vamos focar nos dados do cli_access
         if (currentUser.level_access === 0) {
           console.log('⚠️ Usuário desenvolvedor - usando cli_access disponível')
+        } else if (currentUser.level_access === 1) {
+          console.log('👤 Usuário nível 1 - usando cli_access disponível')
         }
         
         // Processar cli_access diretamente
@@ -588,15 +607,44 @@ export default {
             parseFormData.append('xml_file', file)
             
             console.log(`🔧 Enviando para parse: POST /schedules/parse-xml`)
-            const parseResponse = await this.$http.post('/schedules/parse-xml', parseFormData, {
-              headers: {
-                'Content-Type': 'multipart/form-data',
-                'Authorization': `Bearer ${token}`
-              }
-            })
             
-            const parsedData = parseResponse.data
-            console.log(`✅ XML parseado com sucesso. Chave NFe: ${parsedData.nfe_key}`)
+            let parsedData
+            try {
+              const parseResponse = await this.$http.post('/schedules/parse-xml', parseFormData, {
+                headers: {
+                  'Content-Type': 'multipart/form-data',
+                  'Authorization': `Bearer ${token}`
+                }
+              })
+              
+              parsedData = parseResponse.data
+              console.log(`✅ XML parseado com sucesso. Chave NFe: ${parsedData.nfe_key}`)
+              
+            } catch (parseError) {
+              // Se erro 409 no parse, já é duplicata detectada pelo backend
+              if (parseError.response?.status === 409) {
+                const errorMsg = parseError.response?.data?.message || 'NFe já possui agendamento ativo'
+                console.log(`❌ NFe é DUPLICATA detectada no parse: ${errorMsg}`)
+                
+                processedFiles.push({
+                  name: file.name,
+                  status: 'duplicate',
+                  message: errorMsg
+                })
+                
+                parsedXmlData.push({
+                  file: file,
+                  parsedData: null,
+                  status: 'duplicate',
+                  error: errorMsg
+                })
+                
+                continue // Pular para próximo arquivo
+              } else {
+                // Outros erros de parse
+                throw parseError
+              }
+            }
             
             // Verificar se os dados foram parseados corretamente
             if (!parsedData.data || !parsedData.data.nfeProc) {
@@ -663,11 +711,10 @@ export default {
           }
         }
         
-        // FASE 2: Processar apenas XMLs válidos (sem duplicidade)
+        // FASE 2: Preparar XMLs válidos para configuração de produtos
         const validXmls = parsedXmlData.filter(item => item.status === 'ready')
         const duplicateXmls = parsedXmlData.filter(item => item.status === 'duplicate')
         const errorXmls = parsedXmlData.filter(item => item.status === 'error')
-        const createdSchedules = []
         
         console.log('📊 FASE 1 FINALIZADA - Resumo:')
         console.log(`   ✅ Arquivos válidos: ${validXmls.length}`)
@@ -675,8 +722,11 @@ export default {
         console.log(`   ❌ Arquivos com erro: ${errorXmls.length}`)
         
         if (validXmls.length > 0) {
-          console.log('🏗️ FASE 2: Iniciando criação de agendamentos')
-          this.uploadProgressText = `Criando agendamentos para ${validXmls.length} arquivo(s) válido(s)...`
+          console.log('🏗️ FASE 2: Preparando modal de configuração de produtos')
+          this.uploadProgressText = `Preparando configuração de produtos para ${validXmls.length} arquivo(s)...`
+          
+          // Preparar dados para o modal de produtos
+          this.parsedFilesForModal = []
           
           for (let i = 0; i < validXmls.length; i++) {
             const xmlData = validXmls[i]
@@ -748,7 +798,7 @@ export default {
               // Calcular volumes (case_count) somando as quantidades dos produtos
               const totalQuantity = products.reduce((sum, product) => sum + (product.quantity || 0), 0);
               
-              // Construir nfeData como o ScheduleCreationModal faz
+              // Construir dados da NFe para o modal
               const nfeData = {
                 number: ide.nNF,
                 nfe_key: parsedData.nfe_key || ide.Id?.replace('NFe', '') || '',
@@ -768,158 +818,86 @@ export default {
                 det: nfe.det
               }
 
-              // Construir info object igual ao ScheduleCreationModal
-              const infoObject = {
-                ...nfeData,
-                products: products,
-                created_by: this.$store?.getters?.currentUser?.user || 'Sistema',
-                created_at: new Date().toISOString(),
-                type: 'nfe_schedule',
-                // Dados adicionais para compatibilidade
-                client_number: this.selectedClientData?.numero,
-                nfeProc: {
-                  NFe: {
-                    infNFe: {
-                      ...nfe,
-                      det: nfe.det
-                    }
-                  }
-                }
-              }
-
-              // Usar a mesma estrutura do ScheduleCreationModal (agendamento unitário)
-              const createPayload = {
-                number: ide.nNF,
-                nfe_key: parsedData.nfe_key || ide.Id?.replace('NFe', '') || '',
-                client: this.selectedClient, // Usar 'client' em vez de 'client_cnpj' como no unitário
-                case_count: totalQuantity,
-                date: this.receiptDate,
-                status: 'Solicitado',
-                supplier: emit.xNome.length > 50 ? emit.xNome.substring(0, 50) : emit.xNome,
-                qt_prod: totalQuantity,
-                info: infoObject, // Usar a mesma estrutura do ScheduleCreationModal
-                is_booking: false
-              }
-              
-              console.log(`📦 Payload para criação do agendamento (estrutura unificada):`)
-              console.log(`   📦 Produtos: ${products.length} item(s)`)
-              console.log(`   📅 Data: ${createPayload.date}`)
-              console.log(`   🏢 Cliente: ${createPayload.client}`)
-              console.log(`   🔧 Enviando: POST /schedules (mesmo endpoint do agendamento unitário)`)
-              
-              const createResponse = await this.$http.post('/schedules', createPayload, {
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`
-                }
-              })
-              
-              const newScheduleId = createResponse.data.schedule.id
-              console.log(`✅ Agendamento criado com sucesso! ID: ${newScheduleId} (usando endpoint unificado)`)
-              
-              // Armazenar dados do agendamento criado para integração
-              createdSchedules.push({
-                scheduleId: newScheduleId,
+              // Adicionar à lista para o modal
+              this.parsedFilesForModal.push({
                 fileName: file.name,
-                products: products
+                nfeData: nfeData,
+                products: products,
+                originalFile: file
               })
+
+              console.log(`✅ NFe ${i + 1} preparada para configuração: ${file.name}`)
               
-              processedFiles.push({
-                name: file.name,
-                status: 'success',
-                message: 'Agendamento criado com sucesso'
-              })
+              this.uploadProgress = 30 + Math.round(((i + 1) / validXmls.length) * 50)
               
-            } catch (createError) {
-              console.error(`Erro ao criar agendamento para ${file.name}:`, createError)
+            } catch (prepareError) {
+              console.error(`Erro ao preparar ${file.name} para configuração:`, prepareError)
               processedFiles.push({
                 name: file.name,
                 status: 'error',
-                message: createError.response?.data?.message || 'Erro ao criar agendamento'
+                message: 'Erro ao preparar arquivo para configuração'
               })
             }
           }
         }
         
-        // FASE 3: Integração automática dos produtos (se houver agendamentos criados)
-        if (createdSchedules.length > 0) {
-          console.log('🔗 FASE 3: Iniciando integração automática de produtos')
-          console.log(`📊 Total de agendamentos para integração: ${createdSchedules.length}`)
+        // FASE 3: Abrir modal de configuração de produtos
+        if (this.parsedFilesForModal && this.parsedFilesForModal.length > 0) {
+          console.log('🎯 FASE 3: Abrindo modal de configuração de produtos')
+          console.log(`📊 Total de NFes para configuração: ${this.parsedFilesForModal.length}`)
           
-          this.uploadProgressText = 'Integrando produtos automaticamente...'
-          this.uploadProgress = 80
+          this.uploadProgressText = 'Abrindo configuração de produtos...'
+          this.uploadProgress = 90
           
-          try {
-            const integrationPayload = {
-              schedules: createdSchedules.map(s => ({
-                schedule_id: s.scheduleId,
-                products: s.products
-              }))
-            }
-            console.log('🔧 Enviando para integração: POST /schedules/bulk-integrate-products')
-            console.log('📦 Agendamentos para integração:', createdSchedules.map(s => `ID ${s.scheduleId} (${s.fileName})`))
-            
-            // Chamar endpoint de integração automática de produtos
-            const integrationResponse = await this.$http.post('/schedules/bulk-integrate-products', integrationPayload, {
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`
-              }
-            })
-            
-            console.log('✅ INTEGRAÇÃO CONCLUÍDA:', integrationResponse.data)
-            console.log(`📊 Estatísticas da integração:`, integrationResponse.data.stats)
-            
-          } catch (integrationError) {
-            console.warn('⚠️ AVISO: Agendamentos criados mas problema na integração:', integrationError)
-            console.error('❌ Detalhes do erro de integração:', integrationError.response?.data)
-            // Não é um erro crítico, os agendamentos foram criados
-          }
+          // Pequeno delay para mostrar progresso completo
+          setTimeout(() => {
+            this.showBatchProductsModal = true
+            this.isUploading = false
+            this.uploadProgress = 0
+            this.uploadProgressText = ''
+          }, 500)
+          
+          return // Não continuar o processamento - será feito no modal
         } else {
-          console.log('⚠️ FASE 3: Nenhum agendamento criado - pulando integração')
+          console.log('⚠️ FASE 3: Nenhuma NFe válida para configuração')
         }
         
-        this.uploadProgress = 100
-        this.uploadProgressText = 'Processamento concluído!'
-        
-        const successCount = processedFiles.filter(f => f.status === 'success').length
+        // Mostrar resultados da verificação se não há NFes válidas
+        const validCount = this.parsedFilesForModal ? this.parsedFilesForModal.length : 0
         const errorCount = processedFiles.filter(f => f.status === 'error').length
         const duplicateCount = parsedXmlData.filter(item => item.status === 'duplicate').length
         
-        console.log('🎯 AGENDAMENTO EM LOTE - FINALIZADO')
+        console.log('🎯 VERIFICAÇÃO EM LOTE - FINALIZADA')
         console.log('📊 ESTATÍSTICAS FINAIS:')
-        console.log(`   ✅ Sucessos: ${successCount}`)
+        console.log(`   ✅ Válidos para configuração: ${validCount}`)
         console.log(`   🔄 Duplicatas: ${duplicateCount}`) 
-        console.log(`   ❌ Erros: ${errorCount}`)
-        console.log(`   📦 Agendamentos criados: ${createdSchedules.length}`)
-        console.log(`   ⏱️ Tempo total de processamento: ${Date.now() - (performance.now() - performance.now())}ms`)
+        console.log(`   ❌ Erros de processamento: ${errorCount}`)
         
-        let resultMessage = `${successCount} arquivo(s) processado(s) com sucesso`
-        if (duplicateCount > 0) {
-          resultMessage += `, ${duplicateCount} NFe(s) já possuíam agendamento`
-        }
-        if (errorCount > 0) {
-          resultMessage += `, ${errorCount} com erro(s)`
-        }
-        
-        this.uploadResult = {
-          success: successCount > 0,
-          message: resultMessage,
-          processedFiles: processedFiles,
-          stats: {
-            total: totalFiles,
-            success: successCount,
-            duplicates: duplicateCount,
-            errors: errorCount,
-            created_schedules: createdSchedules.length
+        // Se não há arquivos válidos, mostrar resultado
+        if (validCount === 0) {
+          this.uploadProgress = 100
+          this.uploadProgressText = 'Verificação concluída!'
+          
+          let resultMessage = 'Nenhum arquivo válido para configuração'
+          if (duplicateCount > 0) {
+            resultMessage += `. ${duplicateCount} NFe(s) já possuíam agendamento`
           }
-        }
-        
-        // Clear form after successful upload (only if all files were successful)
-        if (successCount > 0 && errorCount === 0 && duplicateCount === 0) {
-          setTimeout(() => {
-            this.clearForm()
-          }, 3000)
+          if (errorCount > 0) {
+            resultMessage += `, ${errorCount} com erro(s)`
+          }
+          
+          this.uploadResult = {
+            success: false,
+            message: resultMessage,
+            processedFiles: processedFiles,
+            stats: {
+              total: totalFiles,
+              success: 0,
+              duplicates: duplicateCount,
+              errors: errorCount,
+              valid_for_config: validCount
+            }
+          }
         }
         
       } catch (error) {
@@ -929,11 +907,43 @@ export default {
           message: 'Erro geral ao processar arquivos XML'
         }
       } finally {
-        this.isUploading = false
+        // Não resetar loading se modal foi aberto
+        if (!this.showBatchProductsModal) {
+          this.isUploading = false
+          setTimeout(() => {
+            this.uploadProgress = 0
+            this.uploadProgressText = ''
+          }, 2000)
+        }
+      }
+    },
+
+    closeBatchProductsModal() {
+      this.showBatchProductsModal = false
+      this.parsedFilesForModal = []
+      this.isUploading = false
+      this.uploadProgress = 0
+      this.uploadProgressText = ''
+    },
+
+    handleBatchCompleted(result) {
+      console.log('🎉 Agendamento em lote concluído:', result)
+      
+      this.closeBatchProductsModal()
+      
+      // Mostrar resultado final
+      this.uploadResult = {
+        success: result.success,
+        message: result.message,
+        processedFiles: result.processedFiles || [],
+        stats: result.stats || {}
+      }
+      
+      // Limpar formulário se todos foram bem-sucedidos
+      if (result.success && result.stats?.errors === 0) {
         setTimeout(() => {
-          this.uploadProgress = 0
-          this.uploadProgressText = ''
-        }, 2000)
+          this.clearForm()
+        }, 3000)
       }
     }
   }

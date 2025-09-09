@@ -16,22 +16,20 @@
         </div>
 
         <div class="email-settings-content">
-          <!-- Primary Email -->
+          <!-- Primary Email (Display Only) -->
           <div class="setting-group">
             <div class="setting-header">
               <h3 class="setting-title">
                 <i class="fas fa-at"></i>
                 E-mail Principal
               </h3>
-              <p class="setting-description">E-mail principal para notificações do sistema</p>
+              <p class="setting-description">E-mail principal obtido da tabela 'clients' - não pode ser alterado aqui</p>
             </div>
             <div class="setting-control">
-              <input 
-                type="email" 
-                v-model="emailSettings.primaryEmail" 
-                placeholder="admin@empresa.com"
-                class="form-input email-input"
-              />
+              <div class="email-display">
+                <i class="fas fa-envelope"></i>
+                <span class="email-value">{{ emailSettings.primaryEmail || 'Nenhum e-mail configurado' }}</span>
+              </div>
             </div>
           </div>
 
@@ -768,6 +766,41 @@ export default {
 
 .email-input {
   max-width: 400px;
+}
+
+/* Email Display (read-only) */
+.email-display {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--gray-50);
+  border: 2px solid var(--gray-200);
+  border-radius: 8px;
+  max-width: 500px;
+}
+
+.email-display i {
+  color: var(--primary);
+  font-size: 1rem;
+}
+
+.email-value {
+  flex: 1;
+  font-size: 0.95rem;
+  color: var(--gray-700);
+  font-weight: 500;
+}
+
+.email-source-badge {
+  background: var(--primary);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 /* Add Email Section */

@@ -172,7 +172,7 @@
           class="btn btn-success"
         >
           <i class="fas fa-check"></i>
-          Criar Marcação
+          Solicitar Agendamento Prévio
         </button>
       </div>
     </div>
