@@ -319,14 +319,15 @@ export default {
 
     canEditSchedule() {
       console.log('canEditSchedule user:', this.user)
-      return this.user && this.user.level_access !== undefined && this.user.level_access !== 1
+      // Apenas usuários nível 0 (dev) e nível 2 (gerente) podem editar
+      return this.user && this.user.level_access !== undefined && (this.user.level_access === 0 || this.user.level_access === 2)
     },
 
     canMarkAsTratativa() {
       console.log('canMarkAsTratativa user:', this.user, 'status:', this.nfeData?.status)
       
-      // Verificar se o usuário tem permissão (nível diferente de 1)
-      if (!this.user || this.user.level_access === undefined || this.user.level_access === 1) {
+      // Verificar se o usuário tem permissão (apenas níveis 0 e 2)
+      if (!this.user || this.user.level_access === undefined || !(this.user.level_access === 0 || this.user.level_access === 2)) {
         return false
       }
       
@@ -368,8 +369,8 @@ export default {
     canIntegrateCorpem() {
       console.log('canIntegrateCorpem user:', this.user)
       
-      // Verificar se o usuário tem permissão (nível diferente de 1)
-      if (!this.user || this.user.level_access === undefined || this.user.level_access === 1) {
+      // Verificar se o usuário tem permissão (apenas níveis 0 e 2)
+      if (!this.user || this.user.level_access === undefined || !(this.user.level_access === 0 || this.user.level_access === 2)) {
         return false
       }
       

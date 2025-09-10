@@ -21,23 +21,21 @@
             </div>
 
             <div class="section-content">
-              <!-- Vídeo tutorial -->
+              <!-- Placeholder para vídeo tutorial -->
               <div class="video-container">
-                <video 
-                  ref="scheduleVideo"
-                  class="help-video"
-                  controls
-                  preload="metadata"
-                >
-                  <source src="/src/assets/videos/schedule_creation.mp4" type="video/mp4">
-                  Seu navegador não suporta o elemento de vídeo.
-                </video>
+                <div class="video-placeholder">
+                  <div class="placeholder-content">
+                    <i class="fas fa-video fa-3x"></i>
+                    <h4>Vídeo Tutorial em Breve</h4>
+                    <p>O vídeo tutorial estará disponível em uma próxima atualização.</p>
+                  </div>
+                </div>
                 <div class="video-info">
                   <h4>
-                    <i class="fas fa-play-circle"></i>
+                    <i class="fas fa-info-circle"></i>
                     Tutorial: Criação de Agendamentos
                   </h4>
-                  <p>Assista ao vídeo acima para ver passo a passo como criar novos agendamentos no sistema.</p>
+                  <p>Siga o guia passo a passo abaixo para aprender como criar novos agendamentos no sistema.</p>
                 </div>
               </div>
 
@@ -360,6 +358,43 @@ export default {
   height: auto;
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.video-placeholder {
+  width: 100%;
+  max-width: 800px;
+  height: 450px;
+  background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%);
+  border: 2px dashed #94a3b8;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.placeholder-content {
+  text-align: center;
+  color: #64748b;
+}
+
+.placeholder-content i {
+  color: #94a3b8;
+  margin-bottom: 16px;
+  opacity: 0.7;
+}
+
+.placeholder-content h4 {
+  font-size: 1.3rem;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  color: #475569;
+}
+
+.placeholder-content p {
+  font-size: 1rem;
+  margin: 0;
+  opacity: 0.8;
 }
 
 .video-info {

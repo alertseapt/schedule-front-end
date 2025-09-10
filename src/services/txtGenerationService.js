@@ -14,11 +14,11 @@ export function validateTXTGeneration(user, selectedSchedules) {
     return { canGenerate: false, reason: 'Nenhum agendamento selecionado' }
   }
 
-  // Verificar nível de acesso do usuário (apenas usuários com level_access diferente de 1)
-  if (!user || user.level_access === 1) {
+  // Verificar nível de acesso do usuário (apenas usuários com level_access 0 ou 2)
+  if (!user || !(user.level_access === 0 || user.level_access === 2)) {
     return { 
       canGenerate: false, 
-      reason: 'Funcionalidade disponível apenas para usuários com nível de acesso diferente de 1' 
+      reason: 'Funcionalidade disponível apenas para usuários com nível de acesso 0 ou 2' 
     }
   }
 

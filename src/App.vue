@@ -239,7 +239,7 @@
                 </div>
                 
                 <!-- Actions for Solicitado status -->
-                <div v-if="selectedScheduleStatuses[0] === 'Solicitado' && (userLevel === 0 || userLevel === 1)" class="solicitado-actions">
+                <div v-if="selectedScheduleStatuses[0] === 'Solicitado' && (userLevel === 0 || userLevel === 2)" class="solicitado-actions">
                   <button class="btn btn-success action-btn" @click="acceptSchedules" :disabled="bulkActionLoading">
                     <i class="fas fa-check"></i> Aceitar Agendamento
                   </button>
@@ -252,14 +252,14 @@
                 </div>
                 
                 <!-- Actions for Agendado status -->
-                <div v-if="selectedScheduleStatuses[0] === 'Agendado' && (userLevel === 0 || userLevel === 1)" class="agendado-actions">
+                <div v-if="selectedScheduleStatuses[0] === 'Agendado' && (userLevel === 0 || userLevel === 2)" class="agendado-actions">
                   <button class="btn btn-success action-btn" @click="markAsReceived" :disabled="bulkActionLoading">
                     <i class="fas fa-check-circle"></i> Marcar como Em conferência
                   </button>
                 </div>
                 
                 <!-- Actions for Conferência status -->
-                <div v-if="(selectedScheduleStatuses[0] === 'Conferência' || selectedScheduleStatuses[0] === 'Recebido') && (userLevel === 0 || userLevel === 1)" class="conferencia-actions">
+                <div v-if="(selectedScheduleStatuses[0] === 'Conferência' || selectedScheduleStatuses[0] === 'Recebido') && (userLevel === 0 || userLevel === 2)" class="conferencia-actions">
                   <button class="btn btn-info action-btn" @click="markAsEmEstoque" :disabled="bulkActionLoading">
                     <i class="fas fa-warehouse"></i> Marcar como Em estoque
                   </button>
@@ -291,8 +291,16 @@
                   @notification="addNotification"
                 />
                 
-                <!-- Universal Cancel Button (all users can cancel) -->
-                <div v-if="selectedSchedules.length > 0 && !['Cancelar', 'Cancelado', 'Recusado', 'Em estoque', 'Estoque'].includes(selectedScheduleStatuses[0])" class="universal-actions">
+                <!-- Cancel Button for Level 1 users (only Solicitado status) -->
+                <div v-if="userLevel === 1 && selectedSchedules.length > 0 && selectedScheduleStatuses[0] === 'Solicitado'" class="level1-cancel-actions">
+                  <button class="btn btn-outline-danger action-btn" @click="cancelSchedules" :disabled="bulkActionLoading">
+                    <i class="fas fa-ban"></i> 
+                    Cancelar Solicitação
+                  </button>
+                </div>
+
+                <!-- Universal Cancel Button (for level 0 and 2 users) -->
+                <div v-if="(userLevel === 0 || userLevel === 2) && selectedSchedules.length > 0 && !['Cancelar', 'Cancelado', 'Recusado', 'Em estoque', 'Estoque'].includes(selectedScheduleStatuses[0])" class="universal-actions">
                   <button class="btn btn-outline-danger action-btn" @click="cancelSchedules" :disabled="bulkActionLoading">
                     <i class="fas fa-ban"></i> 
                     Cancelar

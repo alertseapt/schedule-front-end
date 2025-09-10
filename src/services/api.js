@@ -286,6 +286,15 @@ class ApiService {
   async testConnectivity() {
     return this.get('/test-connectivity');
   }
+
+  // Versionamento
+  async getVersion() {
+    return this.get('/version');
+  }
+
+  async checkVersion(clientVersion, clientBuildHash) {
+    return this.post('/version/check', { clientVersion, clientBuildHash });
+  }
 }
 
 // Criar instância singleton

@@ -2,6 +2,7 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import axios from 'axios'
 import { BASE_URL } from './config/api.js'
+import versionService from './services/versionService.js'
 
 // Importar estilos
 import './assets/css/main.css'
@@ -135,6 +136,10 @@ setTimeout(() => {
           const app = createApp(App);
           app.config.globalProperties.$http = axios;
           app.mount('#app');
+          
+          // Iniciar sistema de versionamento após carregar app
+          console.log('🔄 Iniciando sistema de versionamento...');
+          versionService.startVersionCheck(5); // Verificar a cada 5 minutos
         }
       }
     } catch (error) {

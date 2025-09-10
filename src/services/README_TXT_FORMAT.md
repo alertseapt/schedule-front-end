@@ -72,8 +72,8 @@ function formatMonetaryValue(value) {
 
 ### Permissões de Acesso
 
-- **Permitido**: Usuários com `level_access !== 1` (Desenvolvedores, Administradores, Gerentes)
-- **Bloqueado**: Usuários com `level_access === 1` (Usuários básicos)
+- **Permitido**: Usuários com `level_access === 0` (Desenvolvedores) e `level_access === 2` (Gerentes)
+- **Bloqueado**: Usuários com `level_access === 1` (Usuários básicos - apenas cancelam solicitações)
 
 ### Validações Aplicadas
 
